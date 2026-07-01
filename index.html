@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Avartan — VP Theory Companion</title>
+<meta name="theme-color" content="#F6F3EC">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="style.css">
+<script>
+// Set theme before first paint so there's no flash of the wrong theme.
+try {
+  var t = JSON.parse(localStorage.getItem('avartan:theme') || '"light"');
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+} catch(e) {
+  document.documentElement.setAttribute('data-theme', 'light');
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<script src="app.js"></script>
+</body>
+</html>
