@@ -120,8 +120,8 @@
     return `
     <header class="top">
       ${themeToggleBtn()}
-      <div class="name deva">आवर्तन</div>
-      <div class="sub">Avartan · VP Theory Companion</div>
+      <div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div>
+      <div class="sub">Avartan · Visharad Purna Theory</div>
       <div class="rule"></div>
     </header>
     <div class="screen active">
@@ -148,7 +148,7 @@
         </div>
         <div class="arrow">→</div>
       </div>`).join('');
-    return `<header class="top">${themeToggleBtn()}<div class="name deva">आवर्तन</div></header>
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
     <div class="screen active">
       <h2 class="scr-title">Topics · 17</h2>
       ${rows}
@@ -169,13 +169,13 @@
     if(fcEntry){
       fullchapHtml = `<div class="fullchap-link" data-action="toggle-fullchap">${state.fullChapOpen ? '▲ Hide full chapter' : '▼ Read full chapter'}</div>`;
       if(state.fullChapOpen){
-        fullchapHtml += `<div class="fullchap-body">${fcEntry.map(([t,b]) => `
-          <div class="fc-sect"><div class="fc-t">${t}</div><div>${b}</div></div>`).join('')}</div>`;
+        fullchapHtml += `<div class="fullchap-body deva">${fcEntry.map(([t,b]) => `
+          <div class="fc-sect"><div class="fc-t deva">${t}</div><div>${b}</div></div>`).join('')}</div>`;
       }
     } else {
       fullchapHtml = `<div class="fullchap-stub">Full chapter text for VP-${String(c.num).padStart(2,'0')} isn't in the app yet — see your physical notes for now.</div>`;
     }
-    return `<header class="top">${themeToggleBtn()}<div class="name deva">आवर्तन</div></header>
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
     <div class="screen active">
       <div class="back-link" data-go="read-list">← सूची · All topics</div>
       <div class="lang-toggle">
@@ -210,7 +210,7 @@
         <div class="go">→</div>
       </div>`;
     }).join('');
-    return `<header class="top">${themeToggleBtn()}<div class="name deva">आवर्तन</div></header>
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
     <div class="screen active">
       <h2 class="scr-title">Quiz · pick a section</h2>
       <div class="card quiz-pick-row" data-action="pick-section" data-section="__mixed__">
@@ -250,7 +250,7 @@
       feedback = `<div class="feedback deva">सही उत्तर: <b>${correctText}</b><span class="sess">सत्र: ${q.session}</span></div>
         <div style="text-align:center;">${i < state.quizQueue.length-1 ? `<button class="btn" data-action="next-q">Next</button>` : `<button class="btn" data-action="finish-quiz">See result</button>`}</div>`;
     }
-    return `<header class="top">${themeToggleBtn()}<div class="name deva">आवर्तन</div></header>
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
     <div class="screen active">
       <div class="ring-wrap">${ring(state.quizQueue.length, ans)}</div>
       <div class="q-num">Question ${i+1} of ${state.quizQueue.length}</div>
@@ -265,7 +265,7 @@
     const score = state.quizAnswers.filter(a=>a===true).length;
     const total = state.quizQueue.length;
     const note = score===total ? 'Full avartan — clean cycle.' : score>=total*0.7 ? 'Solid. Revisit the misses below.' : 'Worth a re-read before the next attempt.';
-    return `<header class="top">${themeToggleBtn()}<div class="name deva">आवर्तन</div></header>
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
     <div class="screen active">
       <h2 class="scr-title">परिणाम · Result</h2>
       <div class="ring-wrap">${ring(total, state.quizAnswers)}</div>
