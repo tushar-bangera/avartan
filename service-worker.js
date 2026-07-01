@@ -1,4 +1,4 @@
-const CACHE = 'avartan-v3';
+const CACHE = 'avartan-v4';
 const ASSETS = [
   './',
   './index.html',

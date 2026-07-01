@@ -169,8 +169,9 @@
     if(fcEntry){
       fullchapHtml = `<div class="fullchap-link" data-action="toggle-fullchap">${state.fullChapOpen ? '▲ Hide full chapter' : '▼ Read full chapter'}</div>`;
       if(state.fullChapOpen){
-        fullchapHtml += `<div class="fullchap-body deva">${fcEntry.map(([t,b]) => `
-          <div class="fc-sect"><div class="fc-t deva">${t}</div><div>${b}</div></div>`).join('')}</div>`;
+        const fcSections = en ? fcEntry.en : fcEntry.deva;
+        fullchapHtml += `<div class="fullchap-body ${!en?'deva':''}">${fcSections.map(([t,b]) => `
+          <div class="fc-sect"><div class="fc-t ${!en?'deva':''}">${t}</div><div>${b}</div></div>`).join('')}</div>`;
       }
     } else {
       fullchapHtml = `<div class="fullchap-stub">Full chapter text for VP-${String(c.num).padStart(2,'0')} isn't in the app yet — see your physical notes for now.</div>`;
