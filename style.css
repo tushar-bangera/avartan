@@ -31,14 +31,14 @@ body{
   font-family:"Trebuchet MS","Futura","Avenir Next",system-ui,sans-serif;
   font-weight:700; letter-spacing:1.5px; text-transform:uppercase;
 }
-#app{ max-width:480px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:78px; }
+#app{ max-width:480px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:calc(78px + env(safe-area-inset-bottom)); }
 
-header.top{ padding:24px 20px 8px; text-align:center; position:relative; }
+header.top{ padding:calc(24px + env(safe-area-inset-top)) 20px 8px; text-align:center; position:relative; }
 header.top .name{ font-size:30px; letter-spacing:4px; color:var(--copper-light); }
 header.top .sub{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--text-faint); margin-top:4px; }
 header.top .rule{ width:50px; height:2px; background:var(--copper); margin:12px auto 0; opacity:.7; }
 .theme-toggle{
-  position:absolute; top:18px; right:16px; width:36px; height:36px; border-radius:50%;
+  position:absolute; top:calc(18px + env(safe-area-inset-top)); right:16px; width:36px; height:36px; border-radius:50%;
   border:1px solid var(--line); background:var(--surface); font-size:16px; cursor:pointer;
   display:flex; align-items:center; justify-content:center; padding:0; line-height:1;
 }
@@ -128,7 +128,7 @@ h2.scr-title{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:11.5px;
 .result-actions{ text-align:center; }
 
 nav.tabs{ position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px;
-  display:flex; background:var(--surface2); border-top:1px solid var(--line); }
+  display:flex; background:var(--surface2); border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); }
 nav.tabs button{ flex:1; background:none; border:none; padding:11px 0 9px; font-family:inherit; cursor:pointer; color:var(--text-faint); }
 nav.tabs button .deva{ display:block; font-size:14px; }
 nav.tabs button .en{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:8.5px; letter-spacing:1.5px; text-transform:uppercase; }
