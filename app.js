@@ -14,7 +14,7 @@
     quizHistory: LS.get('avartan:quizhist', {}),
     currentTopic: null,
     fullChapOpen: false,
-    q: '', jump: null, curQA: null,
+    q: '', jump: null, curQA: null, curPlayer: null, pf: {g:'', i:'', s:''},
     quizSection: null,
     quizQueue: [],
     quizIdx: 0,
@@ -166,6 +166,10 @@
       </div>
       <div class="card home-card" data-href="#/answers">
         <div class="label"><span class="deva">उत्तर</span><span class="en">Model answers · past papers</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/players">
+        <div class="label"><span class="deva">कलाकार</span><span class="en">Players · tabla and pakhawaj</span></div>
         <div class="arrow">→</div>
       </div>
       <div class="stat-line">${state.readTopics.length}/${CARDS.length} topics read</div>
@@ -474,7 +478,7 @@
 
 
   // ---------- Stage C: universal offline search ----------
-  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer'};
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player'};
   let SRCH = null, srchLoading = null, srchTimer = null;
   function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
@@ -582,6 +586,62 @@
     </div>`;
   }
 
+  // ---------- Stage D: players ----------
+  let PLAYERS = null, playersLoading = null;
+  function loadPlayers(){
+    if(PLAYERS) return Promise.resolve(PLAYERS);
+    if(!playersLoading){
+      playersLoading = fetch('players-data.json').then(r => { if(!r.ok) throw new Error('players-data.json: ' + r.status); return r.json(); })
+        .then(d => { PLAYERS = d.players; return PLAYERS; }).catch(e => { playersLoading = null; throw e; });
+    }
+    return playersLoading;
+  }
+  function playerById(id){ return (PLAYERS || []).find(p => p.id === id); }
+  function renderPlayersLoading(){ return `${header()}<div class="screen active"><div class="hi-note">Loading players…</div></div>`; }
+  function renderPlayers(){
+    const f = state.pf, all = PLAYERS;
+    const gh = Array.from(new Set(all.map(p => p.gharana_key))).sort();
+    const list = all.filter(p => (!f.g || p.gharana_key === f.g) && (!f.i || p.instrument.indexOf(f.i) >= 0) && (!f.s || (f.s === 'syl' ? p.in_syllabus : !p.in_syllabus)));
+    const opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Players</div>
+      <div class="topic-head-sub">${list.length} of ${all.length} shown</div>
+      <div class="filters">
+        <select data-pf="g" aria-label="Gharana">${opt('', f.g, 'All gharanas')}${gh.map(g => opt(g, f.g, g)).join('')}</select>
+        <select data-pf="i" aria-label="Instrument">${opt('', f.i, 'Tabla and pakhawaj')}${opt('tabla', f.i, 'Tabla')}${opt('pakhawaj', f.i, 'Pakhawaj')}</select>
+        <select data-pf="s" aria-label="Syllabus">${opt('', f.s, 'Syllabus and context')}${opt('syl', f.s, 'In syllabus')}${opt('ctx', f.s, 'Context only (modern)')}</select>
+      </div>
+      ${list.map(p => `
+      <div class="card topic-row" data-href="#/players/${p.id}">
+        <div><div class="num"><span class="tag ${p.in_syllabus ? 'ans' : 'quiz'}">${p.in_syllabus ? 'Syllabus' : 'Context'}</span> ${escH(p.gharana_key)} · ${escH(p.instrument)}${p.flags.length || p.web_flags.length ? ' <span class="tag flag">⚑</span>' : ''}</div>
+        <div class="ti">${escH(p.name_en)} <span class="deva">· ${escH(p.name_deva)}</span></div></div>
+        <div class="arrow">→</div></div>`).join('')}
+    </div>`;
+  }
+  function pRow(label, val, hi){ return val ? `<div class="p-row"><div class="p-lab">${label}</div><div class="p-val ${hi ? 'deva' : ''}">${escH(val)}</div></div>` : ''; }
+  function renderPlayer(){
+    const p = state.curPlayer;
+    if(!p) return renderPlayers();
+    const w = p.web, proj = p.in_syllabus && (p.born || p.gurus || p.known_for || p.honours);
+    const srcs = p.sources.map(x => x.url ? `<a href="${escH(x.url)}" target="_blank" rel="noopener">${escH(x.label)}</a>` : escH(x.label)).join(' · ');
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/players">← All players</div>
+      <div class="topic-head-sub"><span class="tag ${p.in_syllabus ? 'ans' : 'quiz'}">${p.in_syllabus ? 'In syllabus' : 'Context, not syllabus'}</span> ${escH(p.gharana_key)} · ${escH(p.instrument)}</div>
+      <div class="topic-head">${escH(p.name_en)}</div>
+      <div class="topic-head deva" style="font-size:20px;">${escH(p.name_deva)}</div>
+      ${proj ? `<div class="box model"><div class="box-label">From your notes (unchanged)</div>
+        ${pRow('Gharana', p.gharana, true)}${pRow('Born', p.born, true)}${pRow('Gurus', p.gurus, true)}${pRow('Known for', p.known_for, true)}${pRow('Honours', p.honours, true)}</div>`
+        : (p.in_syllabus ? `<div class="box grey"><div class="box-label">From your notes</div>${pRow('Gharana', p.gharana, true)}${pRow('Note', p.known_for, true)}</div>` : '')}
+      ${w ? `<div class="box grey"><div class="box-label">From the web (cited) · checked ${escH(w.checked)}${p.in_syllabus ? '' : ' · modern player, context only'}</div>
+        ${pRow('Status', w.status)}${pRow('Born', w.born)}${pRow('Died', w.died)}${pRow('Gharana', w.gharana)}${pRow('Gurus', w.gurus)}${pRow('Awards', w.awards)}${pRow('Known for', w.known_for)}${pRow('Students', w.students)}</div>` : ''}
+      ${p.flags.map(t => `<div class="box amber"><div class="box-label">⚑ Note from your chapter</div><div class="box-body deva">${escH(t.text)}</div></div>`).join('')}
+      ${p.web_flags.map(t => `<div class="box amber"><div class="box-label">⚑ Sources differ</div><div class="box-body">${escH(t)}</div></div>`).join('')}
+      <div class="hi-note">Sources: ${srcs}</div>
+    </div>`;
+  }
+
   function render(keep){
     const y = window.scrollY;
     let html = '';
@@ -596,10 +656,14 @@
     else if(state.screen === 'ans-list') html = renderAnsList();
     else if(state.screen === 'ans-paper') html = renderAnsPaper();
     else if(state.screen === 'ans-entry') html = renderAnsEntry();
+    else if(state.screen === 'players-loading') html = renderPlayersLoading();
+    else if(state.screen === 'players') html = renderPlayers();
+    else if(state.screen === 'player') html = renderPlayer();
     else if(state.screen === 'search') html = renderSearch();
     else if(state.screen === 'qa') html = renderQA();
 
-    const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : state.screen.startsWith('ans') ? 'ans' : (state.screen === 'search' || state.screen === 'qa') ? 'search' : 'home';
+    let tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : state.screen.startsWith('ans') ? 'ans' : (state.screen === 'search' || state.screen === 'qa') ? 'search' : 'home';
+    if(state.screen.startsWith('player')) tab = 'players';
     html += `<nav class="tabs">
       <button data-href="#/" class="${tab==='home'?'active':''}"><span class="deva">होम</span><span class="en">Home</span></button>
       <button data-href="#/read" class="${tab==='read'?'active':''}"><span class="deva">पढ़ें</span><span class="en">Read</span></button>
@@ -613,6 +677,7 @@
     // new screen or new question -> top; in-page toggles (language, full chapter, theme, answering) keep the place
     window.scrollTo(0, keep === false ? 0 : y);
     if(state.screen === 'search') wireSearch();
+    root.querySelectorAll('select[data-pf]').forEach(el => el.addEventListener('change', () => { state.pf[el.getAttribute('data-pf')] = el.value; render(); }));
     if(state.jump && !/^ans-(loading|error)$/.test(state.screen)) applyJump();
   }
 
@@ -663,6 +728,16 @@
       else state.screen = 'read-list';
     }
     else if(p[0] === 'read') state.screen = 'read-list';
+    else if(p[0] === 'players'){
+      if(!PLAYERS){
+        state.screen = 'players-loading'; render(false);
+        loadPlayers().then(() => { if(state.screen === 'players-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      state.curPlayer = p[1] ? (playerById(p[1]) || null) : null;
+      state.screen = state.curPlayer ? 'player' : 'players';
+    }
     else if(p[0] === 'search'){ state.q = qp.get('q') || ''; state.screen = 'search'; }
     else if(p[0] === 'qa'){ state.curQA = QUIZ.find(x => String(x.id) === p[1]) || null; state.screen = state.curQA ? 'qa' : 'quiz-list'; }
     else if(p[0] === 'quiz' && p[1] === 'run'){
