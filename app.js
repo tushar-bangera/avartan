@@ -14,6 +14,7 @@
     quizHistory: LS.get('avartan:quizhist', {}),
     currentTopic: null,
     fullChapOpen: false,
+    q: '', jump: null, curQA: null,
     quizSection: null,
     quizQueue: [],
     quizIdx: 0,
@@ -471,6 +472,116 @@
     </div>`;
   }
 
+
+  // ---------- Stage C: universal offline search ----------
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer'};
+  let SRCH = null, srchLoading = null, srchTimer = null;
+  function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
+  function loadSearch(){
+    if(SRCH) return Promise.resolve(SRCH);
+    if(!srchLoading){
+      srchLoading = loadScript('minisearch.min.js').then(() => loadScript('search-core.js')).then(() => loadScript('search.js'))
+        .then(() => fetch('search-index.json'))
+        .then(r => { if(!r.ok) throw new Error('search-index.json: ' + r.status); return r.json(); })
+        .then(d => { SRCH = window.AvSearch.setup(d); return SRCH; })
+        .catch(e => { srchLoading = null; throw e; });
+    }
+    return srchLoading;
+  }
+  function markHtml(text, set){        // escape, then wrap matching words in <mark>
+    const C = window.AvCore, re = /[0-9०-९]+\/[0-9०-९]+|[A-Za-z0-9À-ɏḀ-ỿऀ-ॣ०-९ॱ-ॿ]+/g;
+    let out = '', last = 0, m;
+    while((m = re.exec(text))){
+      const n = C.normTerm(m[0]), k = C.skel(n);
+      out += escH(text.slice(last, m.index));
+      out += (set[n] || (k && set['~' + k])) ? '<mark>' + escH(m[0]) + '</mark>' : escH(m[0]);
+      last = m.index + m[0].length;
+    }
+    return out + escH(text.slice(last));
+  }
+  function jumpHash(r, q){
+    const lang = r.l === 'hi' || r.l === 'deva' ? 'deva' : r.l === 'en' ? 'en' : '';
+    return r.u + '?h=' + encodeURIComponent(r.g || '') + '&q=' + encodeURIComponent(q) + (lang ? '&l=' + lang : '') + (r.ty === 'f' ? '&f=1' : '');
+  }
+  function renderSearch(){
+    return `${header()}
+    <div class="screen active">
+      <div class="search-box"><input id="sq" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+        placeholder="Search · खोजें  (tihai, कायदा, kuaad…)" value="${escH(state.q)}" aria-label="Search"></div>
+      <div id="sres"></div>
+    </div>`;
+  }
+  function paintResults(){
+    const box = document.getElementById('sres'); if(!box) return;
+    const q = state.q.trim();
+    if(!q){ box.innerHTML = `<div class="hi-note">Type a word in English letters or Hindi. Spellings like <b>kayda / qaida / कायदा</b> or <b>tihai / तिहाई</b> find the same thing. Works offline.</div>`; return; }
+    if(!SRCH){
+      box.innerHTML = `<div class="hi-note">Loading search…</div>`;
+      loadSearch().then(paintResults).catch(e => { box.innerHTML = `<div class="hi-note">Search could not load (${escH(e.message)}). Open the app once with internet, then try again.</div>`; });
+      return;
+    }
+    const r = SRCH.search(q, 40), set = SRCH.highlightTerms(r.tokens);
+    if(!r.results.length){ box.innerHTML = `<div class="hi-note">Nothing found for “${escH(q)}”. Try fewer words or another spelling.</div>`; return; }
+    box.innerHTML = `<div class="topic-head-sub">${r.results.length} results${r.mode === 'or' ? ' · closest matches' : ''}</div>` + r.results.map(x => `
+      <div class="card res" data-href="${escH(jumpHash(x, q))}">
+        <div class="res-meta"><span class="tag ${x.ty === 'a' ? 'ans' : x.ty === 'q' ? 'quiz' : ''}">${TYPE_LABEL[x.ty]}</span> ${escH(x.sr)}</div>
+        <div class="res-ti ${x.l === 'hi' || x.l === 'deva' ? 'deva' : ''}">${markHtml(x.ti, set)}</div>
+        ${x.tx && x.tx !== x.ti ? `<div class="res-tx ${x.l === 'hi' || x.l === 'deva' ? 'deva' : ''}">${markHtml(x.tx, set)}</div>` : ''}
+      </div>`).join('');
+    box.onclick = e => { const c = e.target.closest('[data-href]'); if(c) nav(c.getAttribute('data-href')); };
+  }
+  function wireSearch(){
+    const inp = document.getElementById('sq'); if(!inp) return;
+    inp.addEventListener('input', () => {
+      state.q = inp.value;
+      clearTimeout(srchTimer);
+      srchTimer = setTimeout(() => { history.replaceState(null, '', '#/search' + (state.q.trim() ? '?q=' + encodeURIComponent(state.q.trim()) : '')); paintResults(); }, 140);
+    });
+    paintResults();
+    if(!state.q) inp.focus();
+  }
+  // after opening a result: switch language, mark the words, scroll to the passage
+  function applyJump(){
+    const j = state.jump; if(!j) return; state.jump = null;
+    loadSearch().then(() => {
+      const C = window.AvCore, scr = root.querySelector('.screen'); if(!scr) return;
+      const set = j.q ? SRCH.highlightTerms(C.tokenize(j.q).filter(t => !C.STOP[t.toLowerCase()])) : {};
+      const walker = document.createTreeWalker(scr, NodeFilter.SHOW_TEXT), nodes = [];
+      while(walker.nextNode()){ const n = walker.currentNode; if(n.parentNode && !/^(SCRIPT|STYLE|MARK|BUTTON)$/.test(n.parentNode.tagName) && n.nodeValue.trim()) nodes.push(n); }
+      nodes.forEach(n => {
+        const html = markHtml(n.nodeValue, set);
+        if(html.indexOf('<mark>') < 0) return;
+        const sp = document.createElement('span'); sp.innerHTML = html; n.parentNode.replaceChild(sp, n);
+      });
+      let target = null;
+      if(j.h){
+        [j.h, j.h.slice(0, 12)].some(key => {
+          let best = null, len = 1e9;
+          scr.querySelectorAll('*').forEach(el => { if(el.closest('.tabs')) return; const t = C.keyOf(el.textContent); if(t.length < len && t.indexOf(key) >= 0){ best = el; len = t.length; } });
+          target = best; return !!best;
+        });
+      }
+      if(!target) target = scr.querySelector('mark');
+      if(target){ const blk = target.closest('p,li,tr,.card,.box,.fact-row,div') || target; blk.classList.add('jump-hit'); blk.scrollIntoView({block:'center'}); }
+    }).catch(() => {});
+  }
+  function renderQA(){
+    const q = state.curQA; if(!q) return renderQuizList();
+    const opts = q.type === 'mcq'
+      ? q.opts.map((o, oi) => `<div class="opt deva ${oi === q.answerIdx ? 'correct' : ''}">${o}</div>`).join('')
+      : [[true, 'सही · True'], [false, 'गलत · False']].map(([v, l]) => `<div class="opt ${v === q.answer ? 'correct' : ''}">${l}</div>`).join('');
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/search${state.q ? '?q=' + encodeURIComponent(state.q) : ''}">← Search</div>
+      <div class="q-session"><span class="tag quiz">Quiz</span> ${q.section}</div>
+      <div class="q-text deva">${q.q}</div>
+      <div>${opts}</div>
+      <div class="feedback deva">सही उत्तर: <b>${correctText(q)}</b><span class="sess">सत्र: ${q.session}</span></div>
+      ${readLinks(q.section)}
+    </div>`;
+  }
+
   function render(keep){
     const y = window.scrollY;
     let html = '';
@@ -485,19 +596,24 @@
     else if(state.screen === 'ans-list') html = renderAnsList();
     else if(state.screen === 'ans-paper') html = renderAnsPaper();
     else if(state.screen === 'ans-entry') html = renderAnsEntry();
+    else if(state.screen === 'search') html = renderSearch();
+    else if(state.screen === 'qa') html = renderQA();
 
-    const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : state.screen.startsWith('ans') ? 'ans' : 'home';
+    const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : state.screen.startsWith('ans') ? 'ans' : (state.screen === 'search' || state.screen === 'qa') ? 'search' : 'home';
     html += `<nav class="tabs">
       <button data-href="#/" class="${tab==='home'?'active':''}"><span class="deva">होम</span><span class="en">Home</span></button>
       <button data-href="#/read" class="${tab==='read'?'active':''}"><span class="deva">पढ़ें</span><span class="en">Read</span></button>
       <button data-href="#/quiz" class="${tab==='quiz'?'active':''}"><span class="deva">अभ्यास</span><span class="en">Quiz</span></button>
       <button data-href="#/answers" class="${tab==='ans'?'active':''}"><span class="deva">उत्तर</span><span class="en">Answers</span></button>
+      <button data-href="#/search" class="${tab==='search'?'active':''}"><span class="deva">खोजें</span><span class="en">Search</span></button>
     </nav>`;
     root.innerHTML = html;
     if(keep !== false) root.querySelectorAll('.screen').forEach(e => e.classList.add('noanim'));   // fade only on a new screen/question, not on every tap
     bind();
     // new screen or new question -> top; in-page toggles (language, full chapter, theme, answering) keep the place
     window.scrollTo(0, keep === false ? 0 : y);
+    if(state.screen === 'search') wireSearch();
+    if(state.jump && !/^ans-(loading|error)$/.test(state.screen)) applyJump();
   }
 
   // ---------- routing (every screen has a URL; the phone back button works) ----------
@@ -531,15 +647,24 @@
     return true;
   }
   function route(){
-    const p = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
-    state.confirmExit = false;
+    const hashRaw = (location.hash || '').replace(/^#\/?/, ''), qi = hashRaw.indexOf('?');
+    const p = (qi < 0 ? hashRaw : hashRaw.slice(0, qi)).split('/').filter(Boolean);
+    const qp = new URLSearchParams(qi < 0 ? '' : hashRaw.slice(qi + 1));
+    state.confirmExit = false; state.jump = null;
+    if(qp.get('h') !== null || (qp.get('q') && p[0] !== 'search')){
+      state.jump = { h: qp.get('h') || '', q: qp.get('q') || '', f: qp.get('f') === '1' };
+      if(qp.get('l')) state.lang = qp.get('l') === 'deva' ? 'deva' : 'en';
+      if(qp.get('q')) state.q = qp.get('q');
+    }
     if(!p.length) state.screen = 'home';
     else if(p[0] === 'read' && p[1]){
       const n = parseInt(p[1], 10);
-      if(CARDS.some(c => c.num === n)){ state.currentTopic = n; state.fullChapOpen = false; state.screen = 'read-topic'; markRead(n); }
+      if(CARDS.some(c => c.num === n)){ state.currentTopic = n; state.fullChapOpen = !!(state.jump && state.jump.f); state.screen = 'read-topic'; markRead(n); }
       else state.screen = 'read-list';
     }
     else if(p[0] === 'read') state.screen = 'read-list';
+    else if(p[0] === 'search'){ state.q = qp.get('q') || ''; state.screen = 'search'; }
+    else if(p[0] === 'qa'){ state.curQA = QUIZ.find(x => String(x.id) === p[1]) || null; state.screen = state.curQA ? 'qa' : 'quiz-list'; }
     else if(p[0] === 'quiz' && p[1] === 'run'){
       const sec = secFromKey(p[2]);
       if(sec === null) state.screen = 'quiz-list'; else beginQuiz(sec);
