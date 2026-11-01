@@ -135,3 +135,23 @@ nav.tabs button .en{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:
 nav.tabs button.active{ color:var(--copper-light); border-top:2px solid var(--copper); margin-top:-1px; }
 
 .empty{ font-size:13px; color:var(--text-faint); font-style:italic; padding:4px 2px; }
+
+/* ---- v6 Stage A additions (use existing theme tokens only) ---- */
+.tag{ display:inline-block; font-family:"Trebuchet MS",system-ui,sans-serif; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding:2px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; font-weight:700; }
+.tag.read{ color:var(--blue); background:var(--blue-bg); }
+.tag.quiz{ color:var(--amber); background:var(--amber-bg); margin-left:0; margin-right:6px; }
+.quiz-pick-row .num{ margin-bottom:4px; }
+.btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin:4px 0 14px; }
+.btn-row .btn{ padding:12px 20px; }
+.hi-note{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:11.5px; color:var(--text-faint); margin:0 2px 12px; line-height:1.45; }
+.exit-row{ text-align:left; margin-bottom:4px; }
+.exit-btn{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:12px; letter-spacing:.5px; background:none; border:1px solid var(--line); color:var(--text-soft); padding:8px 14px; border-radius:18px; cursor:pointer; min-height:36px; }
+.exit-btn:active{ background:var(--surface2); }
+.confirm-box{ background:var(--bad-bg); border:1px solid var(--bad); border-radius:6px; padding:12px 14px; margin-bottom:10px; font-family:"Trebuchet MS",system-ui,sans-serif; font-size:13px; color:var(--text); }
+.confirm-box .btn-row{ margin:10px 0 0; }
+.read-links{ display:flex; flex-direction:column; gap:8px; margin:14px 0 4px; }
+.read-link{ font-family:"Trebuchet MS",system-ui,sans-serif; font-size:12.5px; color:var(--copper-light); cursor:pointer; padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:var(--surface); }
+.read-link:active{ background:var(--surface2); }
+.card.miss{ margin-bottom:14px; }
+[data-href]:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+.screen.noanim{ animation:none; }
