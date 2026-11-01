@@ -19,8 +19,34 @@
     quizIdx: 0,
     quizAnswers: [],
     _picked: null,
+    confirmExit: false,
     loadError: null
   };
+
+  const MIXED_N = 12;
+  // Topic numbers are the R3 cram-sheet numbers (not VP chapter numbers).
+  // src = the chapter(s) the topic comes from; secs = the quiz section(s) that cover it.
+  // verify.py checks every quiz section is covered and every name here exists in the quiz data.
+  const TOPIC_META = {
+    1:{src:'VP-02', secs:['लय व लयकारी (गिनती)']},
+    2:{src:'VP-03', secs:['रचना के प्रकार (पेशकार/कायदा/रेला/गत/चक्रदार)']},
+    3:{src:'VP-02 + VP-04', secs:['लिपि · ग्रंथ · व्यक्ति-परिचय']},
+    4:{src:'VP-05', secs:['दशप्राण · ग्रह · यति · क्रिया · जाति']},
+    5:{src:'VP-05', secs:['दशप्राण · ग्रह · यति · क्रिया · जाति']},
+    6:{src:'VP-06', secs:['कर्नाटक ताल-पद्धति']},
+    7:{src:'VP-07', secs:['वाद्य (वर्गीकरण व पहचान)']},
+    10:{src:'VP-08', secs:['ताल वर्गीकरण · मूल अंग · परिचय · तुलना']},
+    11:{src:'VP-06 (taal list)', secs:['ताल वर्गीकरण · मूल अंग · परिचय · तुलना']},
+    13:{src:'VP-09', secs:['तबले के छह घराने']},
+    14:{src:'VP-10', secs:['पखावज के घराने']},
+    15:{src:'VP-11', secs:['कलाकारों का जीवन-परिचय']},
+    16:{src:'VP-12', secs:['घराना व बाज का मतलब']},
+    17:{src:'VP-12', secs:['इतिहास व उत्पत्ति']},
+    18:{src:'VP-13', secs:['संगति व गायन की शैलियाँ']},
+    19:{src:'VP-14', secs:['ताल-निर्माण के नियम · सोलो · पढ़ंत · रियाज़']},
+    20:{src:'VP-14 + VP-15', secs:['ताल-निर्माण के नियम · सोलो · पढ़ंत · रियाज़']}
+  };
+  let loaded = false;
 
   function applyTheme(){
     document.documentElement.setAttribute('data-theme', state.theme);
@@ -45,7 +71,8 @@
         fetch('fullchap-data.json').then(r=>{ if(!r.ok) throw new Error('fullchap-data.json: '+r.status); return r.json(); })
       ]);
       CARDS = c; QUIZ = q; FULLCHAP = fc;
-      render();
+      loaded = true;
+      route();
     } catch(err){
       state.loadError = (window.location.protocol === 'file:')
         ? "Avartan needs to run from a web server, not opened directly as a file — fetch() for the data files is blocked on file://. See README.md for the 5-minute GitHub Pages setup, or run a local server (e.g. `python3 -m http.server`) in this folder and open it via http://localhost."
@@ -74,7 +101,7 @@
       const all = QUIZ.slice();
       const rnd = mulberry32(Date.now() % 100000);
       for(let i=all.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [all[i],all[j]]=[all[j],all[i]]; }
-      return all.slice(0,12);
+      return all.slice(0,MIXED_N);
     }
     return QUIZ.filter(q => q.section === sec);
   }
@@ -102,7 +129,6 @@
     }
     const answered = answers.filter(a=>a!==null).length;
     return `<svg width="118" height="118" viewBox="0 0 ${size} ${size}">
-      <text x="50" y="14" text-anchor="middle" font-size="9" fill="var(--copper-light)" font-weight="700">✕</text>
       ${ticks}
       <text x="50" y="55" text-anchor="middle" font-size="15" fill="var(--text)" font-weight="700">${answered}/${total}</text>
     </svg>`;
@@ -114,43 +140,68 @@
     let lastLine = 'No quiz attempts yet';
     if(histKeys.length){
       const all = [].concat(...histKeys.map(k=>state.quizHistory[k]));
+      all.sort((a,b) => String(a.date||'').localeCompare(String(b.date||'')));   // most recent attempt, not last section
       const last = all[all.length-1];
       if(last) lastLine = `Last quiz: ${last.score}/${last.total} (${last.sectionLabel||''})`;
     }
     return `
     <header class="top">
       ${themeToggleBtn()}
-      <div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div>
+      <div class="name deva" data-href="#/" style="cursor:pointer;">आवर्तन</div>
       <div class="sub">Avartan · Visharad Purna Theory</div>
       <div class="rule"></div>
     </header>
     <div class="screen active">
-      <div class="card home-card" data-go="read-list">
-        <div class="label"><span class="deva">पढ़ें</span><span class="en">Read · 17 topics</span></div>
+      <div class="card home-card" data-href="#/read">
+        <div class="label"><span class="deva">पढ़ें</span><span class="en">Read · ${CARDS.length} topics</span></div>
         <div class="arrow">→</div>
       </div>
-      <div class="card home-card" data-go="quiz-list">
+      <div class="card home-card" data-href="#/quiz">
         <div class="label"><span class="deva">अभ्यास</span><span class="en">Quiz · ${QUIZ.length} questions</span></div>
         <div class="arrow">→</div>
       </div>
       <div class="stat-line">${state.readTopics.length}/${CARDS.length} topics read</div>
       <div class="stat-line">${lastLine}</div>
+      <div class="stat-line">${('serviceWorker' in navigator && navigator.serviceWorker.controller) ? '✓ Ready offline' : 'Preparing offline copy… open the app once more when online'}</div>
     </div>`;
   }
 
+  // ---------- helpers ----------
+  const TT = n => 'T' + n;   // topic label = R3 cram-sheet number (NOT the VP chapter number)
+  function topicTitle(c){ return state.lang==='deva' ? c.titleDeva : c.titleEn; }
+  function secKey(sec){ return sec === '__mixed__' ? 'mixed' : String(sections().indexOf(sec)); }
+  function secFromKey(k){ if(k==='mixed') return '__mixed__'; const s = sections()[parseInt(k,10)]; return s===undefined ? null : s; }
+  function topicsForSection(sec){ return CARDS.filter(c => ((TOPIC_META[c.num]||{}).secs||[]).includes(sec)); }
+  function readLinks(sec){
+    const ts = topicsForSection(sec);
+    if(!ts.length) return '';
+    return `<div class="read-links">${ts.map(c => `<span class="read-link" data-href="#/read/${c.num}">📖 Read topic ${TT(c.num)} · ${c.titleEn}</span>`).join('')}</div>`;
+  }
+  function correctText(q){
+    return q.type==='mcq' ? q.opts[q.answerIdx]
+      : (q.answer ? 'सही' : 'गलत') + (q.answerNote && q.answerNote.length>4 ? ` — ${q.answerNote.replace(/^सही\s*|^गलत\s*/,'')}` : '');
+  }
+  function header(){
+    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-href="#/" style="cursor:pointer;">आवर्तन</div></header>`;
+  }
+
   function renderReadList(){
-    const rows = CARDS.map(c => `
-      <div class="card topic-row" data-go="read-topic" data-num="${c.num}">
+    const rows = CARDS.map(c => {
+      const m = TOPIC_META[c.num] || {};
+      return `
+      <div class="card topic-row" data-href="#/read/${c.num}">
         <div>
-          <div class="num">VP-${String(c.num).padStart(2,'0')}</div>
-          <div class="ti">${state.lang==='deva' ? c.titleDeva : c.titleEn}</div>
+          <div class="num">${TT(c.num)} · from ${m.src||''} <span class="tag read">Read</span></div>
+          <div class="ti">${topicTitle(c)}</div>
           ${state.readTopics.includes(c.num) ? '<div class="done">✓ Read</div>' : ''}
         </div>
         <div class="arrow">→</div>
-      </div>`).join('');
-    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
+      </div>`;
+    }).join('');
+    return `${header()}
     <div class="screen active">
-      <h2 class="scr-title">Topics · 17</h2>
+      <h2 class="scr-title">Topics · ${CARDS.length}</h2>
+      <div class="hi-note">T-numbers are the topic numbers of the cram sheets. "from VP-xx" shows which chapter the topic comes from.</div>
       ${rows}
     </div>`;
   }
@@ -159,6 +210,7 @@
     const c = CARDS.find(x => x.num === state.currentTopic);
     if(!c) return '<div class="screen active">Not found.</div>';
     const en = state.lang === 'en';
+    const m = TOPIC_META[c.num] || {secs:[]};
     const factsRows = c.facts.map(f => `
       <div class="fact-row">
         <div class="fact-q">${f.fact}</div>
@@ -174,26 +226,33 @@
           <div class="fc-sect"><div class="fc-t ${!en?'deva':''}">${t}</div><div>${b}</div></div>`).join('')}</div>`;
       }
     } else {
-      fullchapHtml = `<div class="fullchap-stub">Full chapter text for VP-${String(c.num).padStart(2,'0')} isn't in the app yet — see your physical notes for now.</div>`;
+      fullchapHtml = `<div class="fullchap-stub">Full chapter text for ${TT(c.num)} isn't in the app yet — see your physical notes for now.</div>`;
     }
-    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
+    const sec = m.secs[0];
+    const n = sec ? questionsFor(sec).length : 0;
+    const others = sec ? topicsForSection(sec).filter(x => x.num !== c.num) : [];
+    const practise = n ? `<div class="btn-row"><button class="btn" data-href="#/quiz/run/${secKey(sec)}">Practise this topic · ${n} questions</button></div>
+      ${others.length ? `<div class="hi-note">This quiz is shared with ${others.map(x=>TT(x.num)).join(', ')}.</div>` : ''}` : '';
+    return `${header()}
     <div class="screen active">
-      <div class="back-link" data-go="read-list">← सूची · All topics</div>
+      <div class="back-link" data-href="#/read">← सूची · All topics</div>
       <div class="lang-toggle">
         <button data-action="lang-en" class="${en?'active':''}">English</button>
         <button data-action="lang-deva" class="${!en?'active':''}">देवनागरी</button>
       </div>
       <div class="topic-head ${!en?'deva':''}">${en ? c.titleEn : c.titleDeva}</div>
-      <div class="topic-head-sub">VP-${String(c.num).padStart(2,'0')}</div>
+      <div class="topic-head-sub">${TT(c.num)} · from ${m.src||''}</div>
+      ${practise}
 
       <div class="box model">
         <div class="box-label">ऐसे लिखें · How to write this</div>
         <div class="box-body ${!en?'deva':''}">${en ? c.summaryEn : c.skeletonDeva}</div>
       </div>
 
-      ${c.ember ? `<div class="box amber"><div class="box-label">⚑ खुला बिंदु · Open item</div><div class="box-body deva">${c.ember}</div></div>` : ''}
+      ${c.ember ? `<div class="box amber"><div class="box-label">⚑ खुला बिंदु · Open item${en ? ' (note is in Hindi)' : ''}</div><div class="box-body deva">${c.ember}</div></div>` : ''}
 
       <div class="facts-label">तथ्य · Facts asked in papers</div>
+      ${en ? '<div class="hi-note">The questions and answers below are in Hindi, exactly as asked in the papers.</div>' : ''}
       ${factsRows}
 
       <div style="margin-top:16px;">${fullchapHtml}</div>
@@ -206,16 +265,17 @@
       const count = questionsFor(s).length;
       const hist = state.quizHistory[s];
       const last = hist && hist.length ? hist[hist.length-1] : null;
-      return `<div class="card quiz-pick-row" data-action="pick-section" data-section="${encodeURIComponent(s)}">
-        <div><div class="ti deva">${s}</div><div class="ct">${count} questions${last ? ` · last ${last.score}/${last.total}` : ''}</div></div>
+      return `<div class="card quiz-pick-row" data-href="#/quiz/run/${secKey(s)}">
+        <div><div class="num"><span class="tag quiz">Quiz</span></div><div class="ti deva">${s}</div><div class="ct">${count} questions${last ? ` · last ${last.score}/${last.total}` : ''}</div></div>
         <div class="go">→</div>
       </div>`;
     }).join('');
-    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
+    return `${header()}
     <div class="screen active">
       <h2 class="scr-title">Quiz · pick a section</h2>
-      <div class="card quiz-pick-row" data-action="pick-section" data-section="__mixed__">
-        <div><div class="ti">🔀 Mixed — 12 random</div><div class="ct">across all sections</div></div>
+      ${state.lang==='en' ? '<div class="hi-note">Quiz questions are in Hindi, as in the papers.</div>' : ''}
+      <div class="card quiz-pick-row" data-href="#/quiz/run/mixed">
+        <div><div class="num"><span class="tag quiz">Quiz</span></div><div class="ti">🔀 Mixed — ${MIXED_N} random</div><div class="ct">across all sections</div></div>
         <div class="go">→</div>
       </div>
       ${rows}
@@ -247,39 +307,55 @@
     }
     let feedback = '';
     if(answeredThis){
-      const correctText = q.type==='mcq' ? q.opts[q.answerIdx] : (q.answer ? 'सही' : 'गलत') + (q.answerNote && q.answerNote.length>4 ? ` — ${q.answerNote.replace(/^सही\s*|^गलत\s*/,'')}` : '');
-      feedback = `<div class="feedback deva">सही उत्तर: <b>${correctText}</b><span class="sess">सत्र: ${q.session}</span></div>
+      feedback = `<div class="feedback deva">सही उत्तर: <b>${correctText(q)}</b><span class="sess">सत्र: ${q.session}</span></div>
         <div style="text-align:center;">${i < state.quizQueue.length-1 ? `<button class="btn" data-action="next-q">Next</button>` : `<button class="btn" data-action="finish-quiz">See result</button>`}</div>`;
     }
-    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
+    const exitBox = state.confirmExit
+      ? `<div class="confirm-box"><div>Leave this quiz? Your answers so far won't be saved.</div>
+          <div class="btn-row"><button class="btn ghost" data-action="exit-cancel">Keep going</button><button class="btn" data-action="exit-yes">Leave quiz</button></div></div>`
+      : `<div class="exit-row"><button class="exit-btn" data-action="exit-quiz" aria-label="Exit quiz">✕ Exit quiz</button></div>`;
+    return `${header()}
     <div class="screen active">
+      ${exitBox}
       <div class="ring-wrap">${ring(state.quizQueue.length, ans)}</div>
       <div class="q-num">Question ${i+1} of ${state.quizQueue.length}</div>
-      <div class="q-session">${q.section}</div>
+      <div class="q-session"><span class="tag quiz">Quiz</span> ${q.section}</div>
       <div class="q-text deva">${q.q}</div>
       <div>${optsHtml}</div>
       ${feedback}
+      ${readLinks(q.section)}
     </div>`;
   }
 
   function renderQuizResult(){
-    const score = state.quizAnswers.filter(a=>a===true).length;
-    const total = state.quizQueue.length;
-    const note = score===total ? 'Full avartan — clean cycle.' : score>=total*0.7 ? 'Solid. Revisit the misses below.' : 'Worth a re-read before the next attempt.';
-    return `<header class="top">${themeToggleBtn()}<div class="name deva" data-go="home" style="cursor:pointer;">आवर्तन</div></header>
+    const queue = state.quizQueue, ans = state.quizAnswers;
+    const score = ans.filter(a=>a===true).length;
+    const total = queue.length;
+    const misses = queue.filter((q,i) => ans[i] !== true);
+    const note = score===total ? 'Full avartan — clean cycle.' : score>=total*0.7 ? 'Solid. Revisit the misses below.' : 'Worth a re-read before the next attempt. Misses are below.';
+    const missHtml = misses.length ? `<h2 class="scr-title">Revisit · ${misses.length} ${misses.length===1?'miss':'misses'}</h2>` + misses.map(q => `
+      <div class="card miss">
+        <div class="q-session"><span class="tag quiz">Quiz</span> ${q.section}</div>
+        <div class="q-text deva">${q.q}</div>
+        <div class="feedback deva">सही उत्तर: <b>${correctText(q)}</b><span class="sess">सत्र: ${q.session}</span></div>
+        ${readLinks(q.section)}
+      </div>`).join('') : '';
+    return `${header()}
     <div class="screen active">
       <h2 class="scr-title">परिणाम · Result</h2>
-      <div class="ring-wrap">${ring(total, state.quizAnswers)}</div>
+      <div class="ring-wrap">${ring(total, ans)}</div>
       <div class="result-score">${score}/${total}</div>
       <div class="result-note">${note}</div>
       <div class="result-actions">
         <button class="btn" data-action="restart-section">Try again</button>
-        <button class="btn ghost" data-go="quiz-list">Other sections</button>
+        <button class="btn ghost" data-href="#/quiz">Other sections</button>
       </div>
+      ${missHtml}
     </div>`;
   }
 
-  function render(){
+  function render(keep){
+    const y = window.scrollY;
     let html = '';
     if(state.screen === 'home') html = renderHome();
     else if(state.screen === 'read-list') html = renderReadList();
@@ -290,38 +366,89 @@
 
     const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : 'home';
     html += `<nav class="tabs">
-      <button data-go="home" class="${tab==='home'?'active':''}"><span class="deva">होम</span><span class="en">Home</span></button>
-      <button data-go="read-list" class="${tab==='read'?'active':''}"><span class="deva">पढ़ें</span><span class="en">Read</span></button>
-      <button data-go="quiz-list" class="${tab==='quiz'?'active':''}"><span class="deva">अभ्यास</span><span class="en">Quiz</span></button>
+      <button data-href="#/" class="${tab==='home'?'active':''}"><span class="deva">होम</span><span class="en">Home</span></button>
+      <button data-href="#/read" class="${tab==='read'?'active':''}"><span class="deva">पढ़ें</span><span class="en">Read</span></button>
+      <button data-href="#/quiz" class="${tab==='quiz'?'active':''}"><span class="deva">अभ्यास</span><span class="en">Quiz</span></button>
     </nav>`;
     root.innerHTML = html;
+    if(keep !== false) root.querySelectorAll('.screen').forEach(e => e.classList.add('noanim'));   // fade only on a new screen/question, not on every tap
     bind();
+    // new screen or new question -> top; in-page toggles (language, full chapter, theme, answering) keep the place
+    window.scrollTo(0, keep === false ? 0 : y);
+  }
+
+  // ---------- routing (every screen has a URL; the phone back button works) ----------
+  function nav(h){
+    const cur = location.hash || '#/';
+    if(cur === h) route(); else location.hash = h;
+  }
+  function replaceTo(h){ history.replaceState(null, '', h); route(); }
+
+  function beginQuiz(sec){
+    state.quizSection = sec;
+    state.quizQueue = questionsFor(sec);
+    state.quizIdx = 0;
+    state.quizAnswers = new Array(state.quizQueue.length).fill(null);
+    state._picked = null;
+    state.screen = 'quiz-active';
+  }
+  function resultHash(){
+    const ids = state.quizQueue.map(q => q.id).join('-');
+    const bits = state.quizAnswers.map(a => a===true ? '1' : '0').join('');
+    return `#/result/${secKey(state.quizSection)}/${ids}/${bits}`;
+  }
+  function loadResult(p){
+    const sec = secFromKey(p[1]);
+    if(sec === null || !p[2] || !p[3]) return false;
+    const queue = p[2].split('-').map(id => QUIZ.find(q => q.id === parseInt(id,10)));
+    if(queue.some(q => !q) || p[3].length !== queue.length || /[^01]/.test(p[3])) return false;
+    state.quizSection = sec; state.quizQueue = queue;
+    state.quizAnswers = p[3].split('').map(b => b === '1');
+    state.screen = 'quiz-result';
+    return true;
+  }
+  function route(){
+    const p = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+    state.confirmExit = false;
+    if(!p.length) state.screen = 'home';
+    else if(p[0] === 'read' && p[1]){
+      const n = parseInt(p[1], 10);
+      if(CARDS.some(c => c.num === n)){ state.currentTopic = n; state.fullChapOpen = false; state.screen = 'read-topic'; markRead(n); }
+      else state.screen = 'read-list';
+    }
+    else if(p[0] === 'read') state.screen = 'read-list';
+    else if(p[0] === 'quiz' && p[1] === 'run'){
+      const sec = secFromKey(p[2]);
+      if(sec === null) state.screen = 'quiz-list'; else beginQuiz(sec);
+    }
+    else if(p[0] === 'quiz') state.screen = 'quiz-list';
+    else if(p[0] === 'result'){ if(!loadResult(p)) state.screen = 'quiz-list'; }
+    else state.screen = 'home';
+    render(false);
   }
 
   function bind(){
-    root.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => {
-      const go = el.getAttribute('data-go');
-      if(go === 'read-topic'){
-        state.currentTopic = parseInt(el.getAttribute('data-num'));
-        state.fullChapOpen = false;
-        state.screen = 'read-topic';
-        markRead(state.currentTopic);
-      } else { state.screen = go; }
-      render();
-    }));
+    root.querySelectorAll('[data-href]').forEach(el => {
+      if(el.tagName !== 'BUTTON'){ el.setAttribute('role', 'link'); el.setAttribute('tabindex', '0'); }
+      const go = () => nav(el.getAttribute('data-href'));
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', e => { if(e.key === 'Enter' && el.tagName !== 'BUTTON') go(); });
+    });
     root.querySelectorAll('[data-action]').forEach(el => el.addEventListener('click', () => {
       const act = el.getAttribute('data-action');
       if(act === 'lang-en') setLang('en');
       else if(act === 'lang-deva') setLang('deva');
       else if(act === 'toggle-theme') toggleTheme();
       else if(act === 'toggle-fullchap'){ state.fullChapOpen = !state.fullChapOpen; render(); }
-      else if(act === 'pick-section'){
-        const sec = decodeURIComponent(el.getAttribute('data-section'));
-        startSection(sec);
+      else if(act === 'next-q'){ state.quizIdx++; state._picked=null; render(false); }
+      else if(act === 'finish-quiz'){ finishQuiz(); }
+      else if(act === 'restart-section'){ nav('#/quiz/run/' + secKey(state.quizSection)); }
+      else if(act === 'exit-quiz'){
+        if(state.quizAnswers.some(a => a !== null)){ state.confirmExit = true; render(); }
+        else replaceTo('#/quiz');
       }
-      else if(act === 'next-q'){ state.quizIdx++; state._picked=null; render(); }
-      else if(act === 'finish-quiz'){ finishQuiz(); render(); }
-      else if(act === 'restart-section'){ startSection(state.quizSection); }
+      else if(act === 'exit-cancel'){ state.confirmExit = false; render(); }
+      else if(act === 'exit-yes'){ replaceTo('#/quiz'); }
     }));
     root.querySelectorAll('[data-pick]').forEach(el => el.addEventListener('click', () => {
       const raw = el.getAttribute('data-pick');
@@ -334,15 +461,6 @@
     }));
   }
 
-  function startSection(sec){
-    state.quizSection = sec;
-    state.quizQueue = questionsFor(sec);
-    state.quizIdx = 0;
-    state.quizAnswers = new Array(state.quizQueue.length).fill(null);
-    state._picked = null;
-    state.screen = 'quiz-active';
-    render();
-  }
   function finishQuiz(){
     const score = state.quizAnswers.filter(a=>a===true).length;
     const total = state.quizQueue.length;
@@ -350,12 +468,16 @@
     if(!state.quizHistory[state.quizSection]) state.quizHistory[state.quizSection] = [];
     state.quizHistory[state.quizSection].push({score, total, sectionLabel:label, date:new Date().toISOString()});
     LS.set('avartan:quizhist', state.quizHistory);
-    state.screen = 'quiz-result';
+    replaceTo(resultHash());   // replaces the quiz page in history, so Back returns to the list, not into a fresh quiz
   }
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js').catch(()=>{}));
   }
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if(loaded && state.screen==='home') render(); });
+  }
+  window.addEventListener('hashchange', () => { if(loaded) route(); });
   applyTheme();
   loadData();
 })();
