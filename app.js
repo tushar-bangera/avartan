@@ -20,6 +20,9 @@
     quizAnswers: [],
     _picked: null,
     confirmExit: false,
+    curPaper: null,
+    curEntry: null,
+    answersError: null,
     loadError: null
   };
 
@@ -158,6 +161,10 @@
       </div>
       <div class="card home-card" data-href="#/quiz">
         <div class="label"><span class="deva">अभ्यास</span><span class="en">Quiz · ${QUIZ.length} questions</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/answers">
+        <div class="label"><span class="deva">उत्तर</span><span class="en">Model answers · past papers</span></div>
         <div class="arrow">→</div>
       </div>
       <div class="stat-line">${state.readTopics.length}/${CARDS.length} topics read</div>
@@ -354,6 +361,116 @@
     </div>`;
   }
 
+  // ---------- model answers (Stage B): data loads only when this section is opened ----------
+  let ANSWERS = null, answersLoading = null;
+  function loadAnswers(){
+    if(ANSWERS) return Promise.resolve(ANSWERS);
+    if(!answersLoading){
+      answersLoading = fetch('answers-data.json')
+        .then(r => { if(!r.ok) throw new Error('answers-data.json: ' + r.status); return r.json(); })
+        .then(d => { ANSWERS = d; return d; })
+        .catch(err => { answersLoading = null; throw err; });
+    }
+    return answersLoading;
+  }
+  const LK = () => state.lang === 'en' ? 'en' : 'hi';
+  function paperByKey(k){ return ANSWERS.papers.find(p => p.key === k); }
+  function entryChips(e){
+    const L = LK(), m = e.markers, out = [];
+    if(m.flag_count[L] > 0) out.push(`<span class="tag flag">⚑ ${m.flag_count[L]}</span>`);
+    if(m.get_from_guru_placeholders[L] > 0) out.push(`<span class="tag guru">${m.get_from_guru_placeholders[L]} guru box${m.get_from_guru_placeholders[L]>1?'es':''}</span>`);
+    else if(m.needs_material_from_guru) out.push(`<span class="tag guru">ask guru</span>`);
+    if(m.created_for_this_answer) out.push(`<span class="tag made">created for this answer</span>`);
+    return out.join('');
+  }
+  function langToggle(){
+    const en = state.lang === 'en';
+    return `<div class="lang-toggle">
+        <button data-action="lang-en" class="${en?'active':''}">English</button>
+        <button data-action="lang-deva" class="${!en?'active':''}">देवनागरी</button>
+      </div>`;
+  }
+
+  function renderAnsLoading(){
+    return `${header()}<div class="screen active"><h2 class="scr-title">Model answers</h2><div class="hi-note">Loading the answers…</div></div>`;
+  }
+  function renderAnsError(){
+    return `${header()}<div class="screen active"><div class="box amber"><div class="box-label">⚠ Couldn't load the answers</div>
+      <div class="box-body">${state.answersError || ''} Try reloading. If you are offline, open the app once while online so it can save the answers.</div></div></div>`;
+  }
+  function renderAnsList(){
+    const L = LK();
+    const groups = [];
+    ANSWERS.papers.forEach(p => {
+      let g = groups.find(x => x.sitting === p.sitting);
+      if(!g){ g = {sitting: p.sitting, items: []}; groups.push(g); }
+      g.items.push(p);
+    });
+    const html = groups.map(g => `<h2 class="scr-title">${g.sitting}</h2>` + g.items.map(p => {
+      const flagged = p.entries.filter(e => e.markers.flag_count[L] > 0).length;
+      const guru = p.entries.filter(e => e.markers.needs_material_from_guru).length;
+      return `<div class="card topic-row" data-href="#/answers/${p.key}">
+        <div><div class="num">PAPER ${p.paper} <span class="tag ans">Answers</span></div>
+        <div class="ti">${p.sitting} · Paper ${p.paper}</div>
+        <div class="ct">${p.entries.length} answers · ⚑ in ${flagged} · ${guru} need your guru</div></div>
+        <div class="arrow">→</div></div>`;
+    }).join('')).join('');
+    return `${header()}
+    <div class="screen active">
+      <h2 class="scr-title">Model answers · ${ANSWERS.papers.length} papers</h2>
+      ${langToggle()}
+      <div class="box grey"><div class="box-label">How to read the markers</div><div class="box-body">
+        <b>⚑</b> a point flagged in the answer to confirm with your guru.<br>
+        <b>Amber box</b> "Composition needed from your notes or guru": left blank on purpose. Take it from your guru.<br>
+        <b>Green label</b> from your notes · <b>amber label</b> created or adapted for this answer · <b>blue label</b> structure from a source.
+      </div></div>
+      ${html}
+    </div>`;
+  }
+  function renderAnsPaper(){
+    const L = LK(), p = paperByKey(state.curPaper);
+    const rows = p.entries.map(e => `
+      <div class="card topic-row" data-href="#/answers/${p.key}/${e.order}">
+        <div><div class="num">${e.question_number[L]} · ${e.marks[L]} ${entryChips(e)}</div>
+        <div class="ti ${L==='hi'?'deva':''}">${e.question_title[L]}</div></div>
+        <div class="arrow">→</div></div>`).join('');
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/answers">← All papers</div>
+      ${langToggle()}
+      <div class="topic-head">${p.sitting} · Paper ${p.paper}</div>
+      <div class="topic-head-sub">${p.entries.length} answers</div>
+      <div class="hi-note ${L==='hi'?'deva':''}">${p.paper_rule[L]}</div>
+      ${rows}
+    </div>`;
+  }
+  function renderAnsEntry(){
+    const L = LK(), p = paperByKey(state.curPaper);
+    const i = p.entries.findIndex(x => x.order === state.curEntry), e = p.entries[i];
+    const m = e.markers, deva = L === 'hi' ? 'deva' : '';
+    const notes = (m.other_get_from_guru_sentences[L] || []).concat(m.confirm_with_guru_sentences[L] || []);
+    const prev = p.entries[i-1], next = p.entries[i+1];
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/answers/${p.key}">← ${p.sitting} · Paper ${p.paper}</div>
+      ${langToggle()}
+      <div class="topic-head-sub">${e.question_number[L]} · ${e.marks[L]}</div>
+      <div class="topic-head ${deva}">${e.question_title[L]}</div>
+      <div class="chips">${entryChips(e)}</div>
+      <div class="box model"><div class="box-label">${e.section[L]}</div>
+        <div class="box-body ${deva}">${e.question_text[L]}</div>
+        ${(e.choice_rule_in_question[L]||[]).map(r => `<div class="box-body ${deva}"><i>${r}</i></div>`).join('')}
+        ${(L==='en' && e.question_text_en_is_translation) ? '<div class="hi-note">This English question text is a translation. The paper was set in Hindi only.</div>' : ''}
+      </div>
+      <div class="ans-body ${deva}">${e.answer_html[L]}</div>
+      ${notes.length ? `<div class="box amber"><div class="box-label">Notes to raise with your guru</div>${notes.map(n => `<div class="box-body ${deva}">${n}</div>`).join('')}</div>` : ''}
+      <div class="btn-row pn">
+        ${prev ? `<button class="btn ghost" data-href="#/answers/${p.key}/${prev.order}">← ${prev.question_number[L]}</button>` : '<span></span>'}
+        ${next ? `<button class="btn" data-href="#/answers/${p.key}/${next.order}">${next.question_number[L]} →</button>` : ''}
+      </div>
+    </div>`;
+  }
+
   function render(keep){
     const y = window.scrollY;
     let html = '';
@@ -363,12 +480,18 @@
     else if(state.screen === 'quiz-list') html = renderQuizList();
     else if(state.screen === 'quiz-active') html = renderQuizActive();
     else if(state.screen === 'quiz-result') html = renderQuizResult();
+    else if(state.screen === 'ans-loading') html = renderAnsLoading();
+    else if(state.screen === 'ans-error') html = renderAnsError();
+    else if(state.screen === 'ans-list') html = renderAnsList();
+    else if(state.screen === 'ans-paper') html = renderAnsPaper();
+    else if(state.screen === 'ans-entry') html = renderAnsEntry();
 
-    const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : 'home';
+    const tab = state.screen.startsWith('read') ? 'read' : state.screen.startsWith('quiz') ? 'quiz' : state.screen.startsWith('ans') ? 'ans' : 'home';
     html += `<nav class="tabs">
       <button data-href="#/" class="${tab==='home'?'active':''}"><span class="deva">होम</span><span class="en">Home</span></button>
       <button data-href="#/read" class="${tab==='read'?'active':''}"><span class="deva">पढ़ें</span><span class="en">Read</span></button>
       <button data-href="#/quiz" class="${tab==='quiz'?'active':''}"><span class="deva">अभ्यास</span><span class="en">Quiz</span></button>
+      <button data-href="#/answers" class="${tab==='ans'?'active':''}"><span class="deva">उत्तर</span><span class="en">Answers</span></button>
     </nav>`;
     root.innerHTML = html;
     if(keep !== false) root.querySelectorAll('.screen').forEach(e => e.classList.add('noanim'));   // fade only on a new screen/question, not on every tap
@@ -423,6 +546,19 @@
     }
     else if(p[0] === 'quiz') state.screen = 'quiz-list';
     else if(p[0] === 'result'){ if(!loadResult(p)) state.screen = 'quiz-list'; }
+    else if(p[0] === 'answers'){
+      if(!ANSWERS){
+        state.screen = 'ans-loading'; render(false);
+        loadAnswers().then(() => { if(state.screen === 'ans-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      const paper = p[1] && paperByKey(p[1]);
+      const ent = paper && p[2] && paper.entries.find(x => String(x.order) === p[2]);
+      if(ent){ state.curPaper = paper.key; state.curEntry = ent.order; state.screen = 'ans-entry'; }
+      else if(paper){ state.curPaper = paper.key; state.screen = 'ans-paper'; }
+      else state.screen = 'ans-list';
+    }
     else state.screen = 'home';
     render(false);
   }
