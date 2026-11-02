@@ -14,7 +14,7 @@
     quizHistory: LS.get('avartan:quizhist', {}),
     currentTopic: null,
     fullChapOpen: false,
-    q: '', jump: null, curQA: null, curPlayer: null, pf: {g:'', i:'', s:''},
+    q: '', jump: null, curQA: null, curPlayer: null, qf: {t:'', p:'', g:'paper'}, gl: '', ff: {g:'', k:''}, pf: {g:'', i:'', s:''},
     quizSection: null,
     quizQueue: [],
     quizIdx: 0,
@@ -166,6 +166,22 @@
       </div>
       <div class="card home-card" data-href="#/answers">
         <div class="label"><span class="deva">उत्तर</span><span class="en">Model answers · past papers</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/questions">
+        <div class="label"><span class="deva">पूछे गए प्रश्न</span><span class="en">Past questions · find by topic</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/taals">
+        <div class="label"><span class="deva">ताल-तालिका</span><span class="en">Taal sheet · matras, taali, khali</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/glossary">
+        <div class="label"><span class="deva">शब्दावली</span><span class="en">Glossary · one-line meanings</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/flags">
+        <div class="label"><span class="deva">⚑ ध्वज</span><span class="en">Flagged items · check with guru</span></div>
         <div class="arrow">→</div>
       </div>
       <div class="card home-card" data-href="#/players">
@@ -478,7 +494,7 @@
 
 
   // ---------- Stage C: universal offline search ----------
-  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player'};
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary'};
   let SRCH = null, srchLoading = null, srchTimer = null;
   function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
@@ -642,6 +658,131 @@
     </div>`;
   }
 
+  // ---------- Stage E: question finder, taal sheet, glossary, flagged items ----------
+  const XDATA = {};   // lazily loaded small data files
+  function loadX(name){
+    if(XDATA[name] && XDATA[name].d) return Promise.resolve(XDATA[name].d);
+    if(!XDATA[name]) XDATA[name] = {};
+    if(!XDATA[name].p) XDATA[name].p = fetch(name + '-data.json').then(r => { if(!r.ok) throw new Error(name + '-data.json: ' + r.status); return r.json(); })
+      .then(d => (XDATA[name].d = d)).catch(e => { XDATA[name].p = null; throw e; });
+    return XDATA[name].p;
+  }
+  function loadingScreen(msg){ return `${header()}<div class="screen active"><div class="hi-note">${msg}</div></div>`; }
+  // ----- past-question finder (built from the model-answers data) -----
+  function finderRows(){
+    const f = state.qf, needle = (f.t || '').trim().toLowerCase(), L = LK();
+    const rows = [];
+    ANSWERS.papers.forEach(p => p.entries.forEach(e => {
+      if(f.p && p.key !== f.p) return;
+      const hay = (e.question_title.en + ' ' + e.question_title.hi + ' ' + e.question_text.en + ' ' + e.question_text.hi).toLowerCase();
+      if(needle && hay.indexOf(needle) < 0) return;
+      rows.push({p, e, key: e.question_title.en.toLowerCase().replace(/[^a-z0-9ऀ-ॿ]+/g, ' ').trim()});
+    }));
+    const cnt = {}; ANSWERS.papers.forEach(p => p.entries.forEach(e => { const k = e.question_title.en.toLowerCase().replace(/[^a-z0-9ऀ-ॿ]+/g, ' ').trim(); cnt[k] = (cnt[k] || 0) + 1; }));
+    rows.forEach(r => r.n = cnt[r.key]);
+    rows.sort((a, b) => f.g === 'title' ? (a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : (b.p.key < a.p.key ? -1 : b.p.key > a.p.key ? 1 : 0) || (a.e.order - b.e.order));
+    return rows;
+  }
+  function finderListHtml(){
+    const L = LK(), rows = finderRows();
+    if(!rows.length) return `<div class="hi-note">No question matches. Try a shorter word.</div>`;
+    return `<div class="topic-head-sub">${rows.length} questions</div>` + rows.map(r => `
+      <div class="card topic-row" data-href="#/answers/${r.p.key}/${r.e.order}">
+        <div><div class="num">${escH(r.p.sitting)} · Paper ${escH(r.p.paper)} · ${escH(r.e.question_number[L])} · ${escH(r.e.marks[L])}${r.n > 1 ? ` <span class="tag flag">asked ${r.n}×</span>` : ''}</div>
+        <div class="ti ${L==='hi'?'deva':''}">${escH(r.e.question_title[L])}</div></div><div class="arrow">→</div></div>`).join('');
+  }
+  function renderFinder(){
+    const f = state.qf, opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Past questions</div>
+      ${langToggle()}
+      <div class="search-box"><input id="qft" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Filter: kayda, तिहाई, jhaptaal…" value="${escH(f.t)}" aria-label="Filter questions"></div>
+      <div class="filters">
+        <select data-qf="p" aria-label="Paper">${opt('', f.p, 'All 14 papers')}${ANSWERS.papers.map(p => opt(p.key, f.p, p.sitting + ' · Paper ' + p.paper)).join('')}</select>
+        <select data-qf="g" aria-label="Order">${opt('paper', f.g, 'Newest paper first')}${opt('title', f.g, 'Group repeated questions (A–Z)')}</select>
+      </div>
+      <div id="qflist">${finderListHtml()}</div>
+    </div>`;
+  }
+  // ----- taal sheet -----
+  function taalMarks(t){
+    if(!t.taali) return '';
+    const parts = t.vibhag.split('+').map(Number); let b = 1, n = 2, out = [];
+    parts.forEach(len => {
+      let sym;
+      if(t.khali.indexOf(b) >= 0) sym = '0';
+      else if(b === 1) sym = '×';
+      else { sym = String(n); n++; }
+      out.push(`<span class="mk"><b>${sym}</b><i>${b}${len > 1 ? '–' + (b + len - 1) : ''}</i></span>`);
+      b += len;
+    });
+    return out.join('');
+  }
+  function renderTaals(){
+    const D = XDATA.taal.d, row = (a, b) => b ? pRow(a, b) : '';
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Taal sheet</div>
+      <div class="hi-note">${escH(D.note)} Symbols: ${D.symbols.map(s => '<b>' + escH(s.sym) + '</b> ' + escH(s.meaning)).join(' · ')}</div>
+      ${D.taals.map(t => `
+      <div class="card taal">
+        <div class="ti"><span>${escH(t.name_en)}</span> <span class="deva">· ${escH(t.name_deva)}</span></div>
+        <div class="p-row"><div class="p-lab">Matras</div><div class="p-val">${t.matras} · vibhag ${escH(t.vibhag)}${t.padvarg ? ' · <span class="deva">' + escH(t.padvarg) + '</span>' : ''}${t.padvarg_note ? ' <span class="deva">(' + escH(t.padvarg_note) + ')</span>' : ''}</div></div>
+        ${t.taali ? `<div class="p-row"><div class="p-lab">Taali</div><div class="p-val">${t.taali.join(', ')} · khali ${t.khali.join(', ')} · sam 1</div></div>
+        <div class="p-row"><div class="p-lab">Marks</div><div class="p-val marks">${taalMarks(t)}</div></div>` : ''}
+        ${t.theka_deva ? `<div class="p-row"><div class="p-lab">Theka</div><div class="p-val deva">${escH(t.theka_deva)}<div class="srcline">${escH(t.theka_src)}</div></div></div>
+          <div class="p-row"><div class="p-lab">Marks</div><div class="p-val deva">${escH(t.theka_marks)}</div></div>` : ''}
+        ${t.theka_web ? `<div class="p-row"><div class="p-lab">Theka</div><div class="p-val">${escH(t.theka_web)}<div class="srcline">${escH(t.theka_src)} · not from your notes</div></div></div>` : ''}
+        ${t.flags.map(x => `<div class="box amber"><div class="box-label">⚑ Check</div><div class="box-body">${escH(x)}</div></div>`).join('')}
+        <div class="srcline">Sources: ${t.sources.map(x => x.url ? `<a href="${escH(x.url)}" target="_blank" rel="noopener">${escH(x.label)}</a>` : escH(x.label)).join(' · ')}</div>
+      </div>`).join('')}
+    </div>`;
+  }
+  // ----- glossary -----
+  function renderGlossary(){
+    const D = XDATA.glossary.d, f = (state.gl || '').trim().toLowerCase();
+    const list = D.entries.filter(g => !f || (g.term_en + ' ' + g.term_deva + ' ' + g.definition).toLowerCase().indexOf(f) >= 0);
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Glossary</div>
+      <div class="hi-note">${escH(D.note)}</div>
+      <div class="search-box"><input id="glq" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Filter terms…" value="${escH(state.gl)}" aria-label="Filter glossary"></div>
+      <div id="gllist">${glossaryList(list)}</div>
+    </div>`;
+  }
+  function glossaryList(list){
+    return list.map(g => `<div class="card gl"><div class="ti"><span>${escH(g.term_en)}</span> <span class="deva">· ${escH(g.term_deva)}</span></div>
+      <div class="gl-def deva">${escH(g.definition)}</div><div class="srcline">${escH(g.source)}</div></div>`).join('') || '<div class="hi-note">No term matches.</div>';
+  }
+  // ----- flagged items -----
+  function renderFlags(){
+    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet'];
+    const opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
+    const items = D.items.filter(i => (!f.g || i.group === f.g) && (!f.k || i.kind.indexOf(f.k) >= 0));
+    const tag = k => ({flag: '<span class="tag flag">⚑ flag</span>', guru: '<span class="tag guru">ask guru</span>', made: '<span class="tag made">made for this answer</span>'})[k] || '';
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Flagged items</div>
+      <div class="topic-head-sub">${items.length} of ${D.items.length} · every ⚑, "ask guru" and "made for this answer" in one list</div>
+      <div class="filters">
+        <select data-ff="g" aria-label="Where">${opt('', f.g, 'Everywhere')}${groups.map(g => opt(g, f.g, g + ' (' + D.items.filter(i => i.group === g).length + ')')).join('')}</select>
+        <select data-ff="k" aria-label="Kind">${opt('', f.k, 'All kinds')}${opt('flag', f.k, '⚑ flags')}${opt('guru', f.k, 'Ask guru')}${opt('made', f.k, 'Made for this answer')}</select>
+      </div>
+      ${items.map(i => `<div class="card topic-row" data-href="${escH(i.url)}"><div><div class="num">${escH(i.group)} ${i.kind.map(tag).join(' ')}</div>
+        <div class="ti ${/[ऀ-ॿ]/.test(i.label) ? 'deva' : ''}">${escH(i.label)}</div>${i.text ? `<div class="res-tx deva">${escH(i.text)}</div>` : ''}</div><div class="arrow">→</div></div>`).join('')}
+    </div>`;
+  }
+  function wireX(){
+    const qi = document.getElementById('qft');
+    if(qi && state.screen === 'finder') qi.addEventListener('input', () => { state.qf.t = qi.value; const b = document.getElementById('qflist'); if(b){ b.innerHTML = finderListHtml(); bindIn(b); } });
+    const gi = document.getElementById('glq');
+    if(gi) gi.addEventListener('input', () => { state.gl = gi.value; const f = state.gl.trim().toLowerCase(); document.getElementById('gllist').innerHTML = glossaryList(XDATA.glossary.d.entries.filter(g => !f || (g.term_en + ' ' + g.term_deva + ' ' + g.definition).toLowerCase().indexOf(f) >= 0)); });
+    root.querySelectorAll('select[data-qf]').forEach(el => el.addEventListener('change', () => { state.qf[el.getAttribute('data-qf')] = el.value; render(); }));
+    root.querySelectorAll('select[data-ff]').forEach(el => el.addEventListener('change', () => { state.ff[el.getAttribute('data-ff')] = el.value; render(); }));
+  }
+  function bindIn(box){ box.querySelectorAll('[data-href]').forEach(el => { el.setAttribute('role', 'link'); el.setAttribute('tabindex', '0'); el.addEventListener('click', () => nav(el.getAttribute('data-href'))); }); }
+
   function render(keep){
     const y = window.scrollY;
     let html = '';
@@ -656,6 +797,11 @@
     else if(state.screen === 'ans-list') html = renderAnsList();
     else if(state.screen === 'ans-paper') html = renderAnsPaper();
     else if(state.screen === 'ans-entry') html = renderAnsEntry();
+    else if(state.screen === 'x-loading') html = loadingScreen('Loading…');
+    else if(state.screen === 'finder') html = renderFinder();
+    else if(state.screen === 'taals') html = renderTaals();
+    else if(state.screen === 'glossary') html = renderGlossary();
+    else if(state.screen === 'flags') html = renderFlags();
     else if(state.screen === 'players-loading') html = renderPlayersLoading();
     else if(state.screen === 'players') html = renderPlayers();
     else if(state.screen === 'player') html = renderPlayer();
@@ -677,6 +823,7 @@
     // new screen or new question -> top; in-page toggles (language, full chapter, theme, answering) keep the place
     window.scrollTo(0, keep === false ? 0 : y);
     if(state.screen === 'search') wireSearch();
+    wireX();
     root.querySelectorAll('select[data-pf]').forEach(el => el.addEventListener('change', () => { state.pf[el.getAttribute('data-pf')] = el.value; render(); }));
     if(state.jump && !/^ans-(loading|error)$/.test(state.screen)) applyJump();
   }
@@ -728,6 +875,25 @@
       else state.screen = 'read-list';
     }
     else if(p[0] === 'read') state.screen = 'read-list';
+    else if(p[0] === 'questions'){
+      if(!ANSWERS){
+        state.screen = 'x-loading'; render(false);
+        loadAnswers().then(() => { if(state.screen === 'x-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      state.screen = 'finder';
+    }
+    else if(p[0] === 'taals' || p[0] === 'glossary' || p[0] === 'flags'){
+      const nm = p[0] === 'taals' ? 'taal' : p[0];
+      if(!(XDATA[nm] && XDATA[nm].d)){
+        state.screen = 'x-loading'; render(false);
+        loadX(nm).then(() => { if(state.screen === 'x-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      state.screen = p[0];
+    }
     else if(p[0] === 'players'){
       if(!PLAYERS){
         state.screen = 'players-loading'; render(false);
