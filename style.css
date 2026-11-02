@@ -233,3 +233,11 @@ mark{ background:var(--copper-light); color:#1a1209; border-radius:2px; padding:
 .p-lab{ flex:0 0 78px; font-family:"Trebuchet MS",system-ui,sans-serif; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); padding-top:3px; }
 .p-val{ flex:1; font-size:14.5px; line-height:1.55; }
 .hi-note a{ color:var(--copper); }
+
+/* ---- Stage E ---- */
+.card.taal .ti, .card.gl .ti{ font-weight:700; font-size:16px; margin-bottom:6px; }
+.marks{ display:flex; flex-wrap:wrap; gap:6px; }
+.mk{ display:inline-flex; flex-direction:column; align-items:center; min-width:38px; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:var(--surface2); }
+.mk b{ font-size:16px; } .mk i{ font-style:normal; font-size:10px; color:var(--text-faint); }
+.srcline{ font-size:11.5px; color:var(--text-faint); margin-top:4px; } .srcline a{ color:var(--copper); }
+.gl-def{ font-size:14.5px; line-height:1.6; }
