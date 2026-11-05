@@ -180,6 +180,10 @@
         <div class="label"><span class="deva">गायन शैली और ताल</span><span class="en">Taals for singing styles</span></div>
         <div class="arrow">→</div>
       </div>
+      <div class="card home-card" data-href="#/masters">
+        <div class="label"><span class="deva">भातखंडे · पलुस्कर</span><span class="en">Bhatkhande &amp; Paluskar · notation compared</span></div>
+        <div class="arrow">→</div>
+      </div>
       <div class="card home-card" data-href="#/glossary">
         <div class="label"><span class="deva">शब्दावली</span><span class="en">Glossary · one-line meanings</span></div>
         <div class="arrow">→</div>
@@ -498,7 +502,7 @@
 
 
   // ---------- Stage C: universal offline search ----------
-  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary', s:'Singing style'};
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary', s:'Singing style', m:'Bhatkhande & Paluskar'};
   let SRCH = null, srchLoading = null, srchTimer = null;
   function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
@@ -762,7 +766,7 @@
   }
   // ----- flagged items -----
   function renderFlags(){
-    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet', 'Singing styles'];
+    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet', 'Singing styles', 'Bhatkhande & Paluskar'];
     const opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
     const items = D.items.filter(i => (!f.g || i.group === f.g) && (!f.k || i.kind.indexOf(f.k) >= 0));
     const tag = k => ({flag: '<span class="tag flag">⚑ flag</span>', guru: '<span class="tag guru">ask guru</span>', made: '<span class="tag made">made for this answer</span>'})[k] || '';
@@ -826,6 +830,64 @@
       <div class="hi-note">Source: VP-13 (Accompaniment rules), copied word for word. Taals tagged to a style only where the line says so.</div>
     </div>`;
   }
+  // ----- Stage G: Pt. Bhatkhande and Pt. Paluskar -----
+  function renderMasters(){
+    const D = XDATA.masters.d;
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Bhatkhande &amp; Paluskar</div>
+      <div class="hi-note">${escH(D.note)}</div>
+      ${D.people.map(x => `<div class="card topic-row" data-href="#/masters/${x.id}"><div><div class="ti"><span>${escH(x.name_en)}</span></div><div class="res-tx deva">${escH(x.name_deva)}</div></div><div class="arrow">→</div></div>`).join('')}
+      <div class="card topic-row" data-href="#/notation"><div><div class="ti"><span>The two taal notations, side by side</span></div><div class="res-tx deva">भातखंडे लिपि बनाम पलुस्कर लिपि · तीनताल दोनों में · पत्रों में पूछे गए प्रश्न</div></div><div class="arrow">→</div></div>
+      <div class="box grey"><div class="box-label">Asked in papers (from your VP-08)</div><div class="box-body deva">${escH(D.asked.label)} · ${escH(D.asked.sittings)}</div></div>
+    </div>`;
+  }
+  function renderMaster(){
+    const x = state.curMaster; if(!x) return renderMasters();
+    const w = x.web, other = x.id === 'bhatkhande' ? 'paluskar' : 'bhatkhande';
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/masters">← Bhatkhande &amp; Paluskar</div>
+      <div class="topic-head">${escH(x.name_en)}</div>
+      <div class="topic-head deva" style="font-size:20px;">${escH(x.name_deva)}</div>
+      <div class="box model"><div class="box-label">From your notes · VP-08 (unchanged, paper key included)</div>
+        ${x.notes.map(t => `<div class="box-body deva">${escH(t)}</div>`).join('')}
+        ${x.books.length ? `<div class="box-label" style="margin-top:8px;">Books to remember (VP-08 §6)</div>${x.books.map(b => `<div class="box-body deva"><b>${escH(b.title)}</b> · ${escH(b.author)} · ${escH(b.why)}</div>`).join('')}` : ''}</div>
+      <div class="box grey"><div class="box-label">From the web (cited) · checked ${escH(w.checked)}</div>
+        ${pRow('Born', w.born)}${pRow('Died', w.died)}${pRow('Education', w.education)}${pRow('Teachers', w.gurus)}${pRow('Books', w.books)}${pRow('Institutions', w.institutions)}${pRow('Contribution', w.contribution)}</div>
+      ${w.flags.map(t => `<div class="box amber"><div class="box-label">⚑ Check</div><div class="box-body">${escH(t)}</div></div>`).join('')}
+      <div class="card topic-row" data-href="#/notation"><div><div class="ti"><span>${escH(x.notation_name)} · compare both notations</span></div></div><div class="arrow">→</div></div>
+      <div class="hi-note">Sources: ${w.sources.map(s => `<a href="${escH(s.url)}" target="_blank" rel="noopener">${escH(s.label)}</a>`).join(' · ')}</div>
+    </div>`;
+  }
+  function renderNotation(){
+    const N = XDATA.masters.d.notation, T = N.teentaal;
+    const vib = [0, 1, 2, 3].map(v => {
+      const idx = [0, 1, 2, 3].map(k => v * 4 + k);
+      const row = (lab, f, cls) => `<tr><th>${lab}</th>${idx.map(i => `<td class="${cls || ''}">${escH(f(i))}</td>`).join('')}</tr>`;
+      return `<table class="vib"><tr><th>मात्रा</th>${idx.map(i => `<td>${i + 1}</td>`).join('')}</tr>
+        ${row('बोल', i => T.bols[i], 'deva')}${row('भातखंडे', i => T.bhatkhande[i])}${row('पलुस्कर', i => T.paluskar[i])}
+        <tr><th>पलुस्कर बोल-चिह्न</th>${idx.map(() => '<td>___</td>').join('')}</tr>
+        <tr class="barrow"><th>विभाग-रेखा</th><td colspan="4">भातखंडे: ${v < 3 ? '| (इस विभाग के बाद)' : '| (अंत)'} · पलुस्कर: ${v < 3 ? 'नहीं' : '| (केवल ताल के अंत में)'}</td></tr></table>`;
+    }).join('');
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/masters">← Bhatkhande &amp; Paluskar</div>
+      <div class="topic-head">The two taal notations</div>
+      <div class="hi-note">Table, key points and exam lines are from your VP-04, VP-02 and VP-01, unchanged.</div>
+      <div class="cmp head"><div></div><div>भातखंडे</div><div>पलुस्कर</div></div>
+      ${N.table.map(r => `<div class="cmp"><div class="deva">${escH(r.what)}</div><div class="deva">${escH(r.bh)}</div><div class="deva">${escH(r.pa)}</div></div>`).join('')}
+      <div class="box model"><div class="box-label">${escH(N.differences_head)} · VP-04</div>${N.differences.map(t => `<div class="box-body deva">${escH(t)}</div>`).join('')}</div>
+      <div class="box model"><div class="box-label">Which one to use · VP-04</div>${N.lipi_bhed.map(t => `<div class="box-body deva">${escH(t)}</div>`).join('')}</div>
+      <div class="box model"><div class="box-label">Why aad / kuaad / biaad are asked in Bhatkhande · VP-04</div>${N.why_bhatkhande.map(t => `<div class="box-body deva">${escH(t)}</div>`).join('')}</div>
+      <div class="box model"><div class="box-label">Write this in the comparison essay · VP-01 and VP-02</div><div class="box-body deva">${escH(N.fark)}</div><div class="box-body deva">${escH(N.sentence)}</div><div class="box-body deva">${escH(N.tip)}</div></div>
+      <div class="topic-head-sub">Teentaal written in both</div>
+      <div class="hi-note">${escH(T.note)}</div>
+      ${vib}
+      <div class="topic-head-sub">Which notation the papers ask for</div>
+      ${N.papers.map(p => `<div class="card"><div class="res-tx deva">${escH(p.q)}</div><div class="srcline">${escH(p.sitting)} · ${escH(p.lipi)}</div></div>`).join('')}
+    </div>`;
+  }
   function wireX(){
     const qi = document.getElementById('qft');
     if(qi && state.screen === 'finder') qi.addEventListener('input', () => { state.qf.t = qi.value; const b = document.getElementById('qflist'); if(b){ b.innerHTML = finderListHtml(); bindIn(b); } });
@@ -856,6 +918,9 @@
     else if(state.screen === 'glossary') html = renderGlossary();
     else if(state.screen === 'styles') html = renderStyles();
     else if(state.screen === 'style') html = renderStyle();
+    else if(state.screen === 'masters') html = renderMasters();
+    else if(state.screen === 'master') html = renderMaster();
+    else if(state.screen === 'notation') html = renderNotation();
     else if(state.screen === 'flags') html = renderFlags();
     else if(state.screen === 'players-loading') html = renderPlayersLoading();
     else if(state.screen === 'players') html = renderPlayers();
@@ -952,6 +1017,16 @@
         state.curStyle = p[1] ? styleById(p[1]) : null;
         state.screen = state.curStyle ? 'style' : 'styles';
       } else state.screen = p[0];
+    }
+    else if(p[0] === 'masters' || p[0] === 'notation'){
+      if(!(XDATA.masters && XDATA.masters.d)){
+        state.screen = 'x-loading'; render(false);
+        loadX('masters').then(() => { if(state.screen === 'x-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      if(p[0] === 'notation') state.screen = 'notation';
+      else { state.curMaster = p[1] ? (XDATA.masters.d.people.find(x => x.id === p[1]) || null) : null; state.screen = state.curMaster ? 'master' : 'masters'; }
     }
     else if(p[0] === 'players'){
       if(!PLAYERS){
