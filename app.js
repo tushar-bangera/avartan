@@ -176,6 +176,10 @@
         <div class="label"><span class="deva">ताल-तालिका</span><span class="en">Taal sheet · matras, taali, khali</span></div>
         <div class="arrow">→</div>
       </div>
+      <div class="card home-card" data-href="#/styles">
+        <div class="label"><span class="deva">गायन शैली और ताल</span><span class="en">Taals for singing styles</span></div>
+        <div class="arrow">→</div>
+      </div>
       <div class="card home-card" data-href="#/glossary">
         <div class="label"><span class="deva">शब्दावली</span><span class="en">Glossary · one-line meanings</span></div>
         <div class="arrow">→</div>
@@ -494,7 +498,7 @@
 
 
   // ---------- Stage C: universal offline search ----------
-  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary'};
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary', s:'Singing style'};
   let SRCH = null, srchLoading = null, srchTimer = null;
   function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
@@ -734,6 +738,7 @@
         ${t.theka_deva ? `<div class="p-row"><div class="p-lab">Theka</div><div class="p-val deva">${escH(t.theka_deva)}<div class="srcline">${escH(t.theka_src)}</div></div></div>
           <div class="p-row"><div class="p-lab">Marks</div><div class="p-val deva">${escH(t.theka_marks)}</div></div>` : ''}
         ${t.theka_web ? `<div class="p-row"><div class="p-lab">Theka</div><div class="p-val">${escH(t.theka_web)}<div class="srcline">${escH(t.theka_src)} · not from your notes</div></div></div>` : ''}
+        ${stylesUse(t.id)}
         ${t.flags.map(x => `<div class="box amber"><div class="box-label">⚑ Check</div><div class="box-body">${escH(x)}</div></div>`).join('')}
         <div class="srcline">Sources: ${t.sources.map(x => x.url ? `<a href="${escH(x.url)}" target="_blank" rel="noopener">${escH(x.label)}</a>` : escH(x.label)).join(' · ')}</div>
       </div>`).join('')}
@@ -757,7 +762,7 @@
   }
   // ----- flagged items -----
   function renderFlags(){
-    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet'];
+    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet', 'Singing styles'];
     const opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
     const items = D.items.filter(i => (!f.g || i.group === f.g) && (!f.k || i.kind.indexOf(f.k) >= 0));
     const tag = k => ({flag: '<span class="tag flag">⚑ flag</span>', guru: '<span class="tag guru">ask guru</span>', made: '<span class="tag made">made for this answer</span>'})[k] || '';
@@ -771,6 +776,54 @@
       </div>
       ${items.map(i => `<div class="card topic-row" data-href="${escH(i.url)}"><div><div class="num">${escH(i.group)} ${i.kind.map(tag).join(' ')}</div>
         <div class="ti ${/[ऀ-ॿ]/.test(i.label) ? 'deva' : ''}">${escH(i.label)}</div>${i.text ? `<div class="res-tx deva">${escH(i.text)}</div>` : ''}</div><div class="arrow">→</div></div>`).join('')}
+    </div>`;
+  }
+  // ----- Stage F: taals for singing styles -----
+  function styleById(id){ return XDATA.styles.d.styles.find(x => x.id === id) || null; }
+  function taalChip(t){
+    return t.id ? `<a class="chip link" role="link" tabindex="0" data-href="#/taals?h=${encodeURIComponent(t.anchor)}"><span class="deva">${escH(t.name)}</span> ›</a>` : `<span class="chip"><span class="deva">${escH(t.name)}</span></span>`;
+  }
+  function stylesUse(id){
+    const D = XDATA.styles && XDATA.styles.d; if(!D) return '';
+    const yes = D.styles.filter(x => x.taals.some(t => t.id === id)), no = D.styles.filter(x => x.not_taals.some(t => t.id === id));
+    const chip = x => `<a class="chip link" role="link" tabindex="0" data-href="#/styles/${x.id}">${escH(x.en)} ›</a>`;
+    return (yes.length ? `<div class="p-row"><div class="p-lab">Used for</div><div class="p-val">${yes.map(chip).join(' ')}<div class="srcline">VP-13 · tap a style</div></div></div>` : '')
+      + (no.length ? `<div class="p-row"><div class="p-lab">Not with</div><div class="p-val">${no.map(chip).join(' ')}<div class="srcline">VP-13 · paper trap</div></div></div>` : '');
+  }
+  function renderStyles(){
+    const D = XDATA.styles.d, tid = state.stTaal;
+    const tl = tid && XDATA.taal.d.taals.find(x => x.id === tid);
+    const list = D.styles.filter(x => !tid || x.taals.some(t => t.id === tid));
+    const groups = []; list.forEach(x => { if(groups.indexOf(x.group) < 0) groups.push(x.group); });
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head">Taals for singing styles</div>
+      <div class="hi-note">${escH(D.note)}</div>
+      ${tl ? `<div class="box grey"><div class="box-label">Showing only styles that use</div><div class="box-body">${escH(tl.name_en)} · <span class="deva">${escH(tl.name_deva)}</span> · <a class="chip link" role="link" tabindex="0" data-href="#/styles">Show all styles</a></div></div>` : ''}
+      ${groups.map(g => `<div class="topic-head-sub">${escH(g)}</div>` + list.filter(x => x.group === g).map(x => `<div class="card topic-row" data-href="#/styles/${x.id}"><div>
+        <div class="ti"><span>${escH(x.en)}</span> <span class="deva">· ${escH(x.deva)}</span></div>
+        <div class="res-tx deva">${x.laya ? 'लय: ' + escH(x.laya) + ' · ' : ''}${x.taals.length ? x.taals.map(t => escH(t.name)).join(', ') : 'ताल नोट्स में नहीं दिया'}</div></div><div class="arrow">→</div></div>`).join('')).join('')}
+      ${tid ? '' : `<div class="box model"><div class="box-label">Rules for every style (VP-13 §2)</div>${D.general.rules.map(r => `<div class="box-body deva">• ${escH(r)}</div>`).join('')}</div>`}
+    </div>`;
+  }
+  function renderStyle(){
+    const x = state.curStyle; if(!x) return renderStyles();
+    const D = XDATA.styles.d, r = x.row;
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/styles">← All styles</div>
+      <div class="topic-head-sub"><span class="tag quiz">${escH(x.group)}</span>${x.laya ? ' · लय: <span class="deva">' + escH(x.laya) + '</span>' : ''}</div>
+      <div class="topic-head">${escH(x.en)}</div>
+      <div class="topic-head deva" style="font-size:20px;">${escH(x.deva)}</div>
+      ${x.keys.length ? `<div class="box model"><div class="box-label">Paper key · write this in MCQ / fill / T-F</div>${x.keys.map(k => `<div class="box-body deva">${escH(k.q)} → <b>${escH(k.a)}</b></div>`).join('')}</div>` : ''}
+      <div class="box grey"><div class="box-label">Taals${x.taals.length ? ' · tap to open on the Taal sheet' : ''}</div><div class="box-body">${x.taals.length ? x.taals.map(taalChip).join(' ') : '<span class="deva">इस शैली के ताल नोट्स में अलग से नहीं दिए गए।</span>'}</div>
+        ${x.not_taals.length ? `<div class="box-body">Not with this style: ${x.not_taals.map(taalChip).join(' ')}</div>` : ''}</div>
+      ${r ? `<div class="box model"><div class="box-label">From your notes · VP-13 §3 (unchanged)</div>
+        ${pRow('Class', r.cls, true)}${pRow('Taals', r.taals, true)}${pRow('Instrument', r.vadya, true)}${pRow('How to accompany', r.how, true)}</div>` : ''}
+      ${x.notes.map(t => `<div class="box model"><div class="box-label">From your notes · VP-13</div><div class="box-body deva">${escH(t)}</div></div>`).join('')}
+      ${x.traps.length ? `<div class="box grey"><div class="box-label">Paper traps (VP-13 §7)</div>${x.traps.map(t => `<div class="box-body deva">${escH(t.q)} → <b>${escH(t.a)}</b> · जाल: ${escH(t.trap)}</div>`).join('')}</div>` : ''}
+      ${x.flags.map(f => `<div class="box amber"><div class="box-label">⚑ ${f.kind === 'guru' ? 'Ask your guru' : 'Check'} · ${escH(f.src)}</div><div class="box-body deva">${escH(f.text)}</div></div>`).join('')}
+      <div class="hi-note">Source: VP-13 (Accompaniment rules), copied word for word. Taals tagged to a style only where the line says so.</div>
     </div>`;
   }
   function wireX(){
@@ -801,6 +854,8 @@
     else if(state.screen === 'finder') html = renderFinder();
     else if(state.screen === 'taals') html = renderTaals();
     else if(state.screen === 'glossary') html = renderGlossary();
+    else if(state.screen === 'styles') html = renderStyles();
+    else if(state.screen === 'style') html = renderStyle();
     else if(state.screen === 'flags') html = renderFlags();
     else if(state.screen === 'players-loading') html = renderPlayersLoading();
     else if(state.screen === 'players') html = renderPlayers();
@@ -884,15 +939,19 @@
       }
       state.screen = 'finder';
     }
-    else if(p[0] === 'taals' || p[0] === 'glossary' || p[0] === 'flags'){
-      const nm = p[0] === 'taals' ? 'taal' : p[0];
-      if(!(XDATA[nm] && XDATA[nm].d)){
+    else if(p[0] === 'taals' || p[0] === 'glossary' || p[0] === 'flags' || p[0] === 'styles'){
+      const need = (p[0] === 'taals' || p[0] === 'styles') ? ['taal', 'styles'] : [p[0]];
+      if(!need.every(nm => XDATA[nm] && XDATA[nm].d)){
         state.screen = 'x-loading'; render(false);
-        loadX(nm).then(() => { if(state.screen === 'x-loading') route(); })
+        Promise.all(need.map(loadX)).then(() => { if(state.screen === 'x-loading') route(); })
           .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
         return;
       }
-      state.screen = p[0];
+      if(p[0] === 'styles'){
+        state.stTaal = qp.get('taal') || '';
+        state.curStyle = p[1] ? styleById(p[1]) : null;
+        state.screen = state.curStyle ? 'style' : 'styles';
+      } else state.screen = p[0];
     }
     else if(p[0] === 'players'){
       if(!PLAYERS){
