@@ -72,7 +72,7 @@
       var tt = C.tokenize(r.ti || '').map(C.normTerm).join(' ');
       if (tt.indexOf(phrase) >= 0) r.score *= 1.5;
     });
-    res.forEach(function (r) { if (r.ty === 'g') r.score *= 1.7; else if (r.ty === 't') r.score *= 1.3; });
+    res.forEach(function (r) { if (r.ty === 'g') r.score *= 1.7; else if (r.ty === 't' || r.ty === 's') r.score *= 1.3; });
     res.sort(function (a, b) { return b.score - a.score; });
     // one passage per (page, anchor)
     var seen = {}, out = [];
