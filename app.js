@@ -184,6 +184,14 @@
         <div class="label"><span class="deva">भातखंडे · पलुस्कर</span><span class="en">Bhatkhande &amp; Paluskar · notation compared</span></div>
         <div class="arrow">→</div>
       </div>
+      <div class="card home-card" data-href="#/dashpraan">
+        <div class="label"><span class="deva">ताल के दशप्राण</span><span class="en">Dashpraan notes · full document</span></div>
+        <div class="arrow">→</div>
+      </div>
+      <div class="card home-card" data-href="#/gharana">
+        <div class="label"><span class="deva">घराना रेडी-रेकनर</span><span class="en">Gharana ready-reckoner · trees and cards</span></div>
+        <div class="arrow">→</div>
+      </div>
       <div class="card home-card" data-href="#/glossary">
         <div class="label"><span class="deva">शब्दावली</span><span class="en">Glossary · one-line meanings</span></div>
         <div class="arrow">→</div>
@@ -502,7 +510,7 @@
 
 
   // ---------- Stage C: universal offline search ----------
-  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary', s:'Singing style', m:'Bhatkhande & Paluskar'};
+  const TYPE_LABEL = {c:'Notes', f:'Full chapter', q:'Quiz', a:'Model answer', p:'Player', t:'Taal', g:'Glossary', s:'Singing style', m:'Bhatkhande & Paluskar', d:'Dashpraan notes', h:'Gharana reckoner'};
   let SRCH = null, srchLoading = null, srchTimer = null;
   function escH(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function loadScript(src){ return new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => bad(new Error('Could not load ' + src)); document.head.appendChild(el); }); }
@@ -537,6 +545,7 @@
     <div class="screen active">
       <div class="search-box"><input id="sq" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false"
         placeholder="Search · खोजें  (tihai, कायदा, kuaad…)" value="${escH(state.q)}" aria-label="Search"></div>
+      <div class="chips" id="sscope">${[['', 'All'], ['d', 'Dashpraan notes only'], ['h', 'Gharana reckoner only']].map(c => `<button type="button" class="chip${(state.sf || '') === c[0] ? ' on' : ''}" data-sf="${c[0]}">${c[1]}</button>`).join('')}</div>
       <div id="sres"></div>
     </div>`;
   }
@@ -549,8 +558,9 @@
       loadSearch().then(paintResults).catch(e => { box.innerHTML = `<div class="hi-note">Search could not load (${escH(e.message)}). Open the app once with internet, then try again.</div>`; });
       return;
     }
-    const r = SRCH.search(q, 40), set = SRCH.highlightTerms(r.tokens);
-    if(!r.results.length){ box.innerHTML = `<div class="hi-note">Nothing found for “${escH(q)}”. Try fewer words or another spelling.</div>`; return; }
+    const r = SRCH.search(q, state.sf ? 600 : 40), set = SRCH.highlightTerms(r.tokens);
+    if(state.sf) r.results = r.results.filter(x => x.ty === state.sf).slice(0, 40);
+    if(!r.results.length){ box.innerHTML = `<div class="hi-note">Nothing found for “${escH(q)}”${state.sf ? ' in this document' : ''}. Try fewer words or another spelling.</div>`; return; }
     box.innerHTML = `<div class="topic-head-sub">${r.results.length} results${r.mode === 'or' ? ' · closest matches' : ''}</div>` + r.results.map(x => `
       <div class="card res" data-href="${escH(jumpHash(x, q))}">
         <div class="res-meta"><span class="tag ${x.ty === 'a' ? 'ans' : x.ty === 'q' ? 'quiz' : ''}">${TYPE_LABEL[x.ty]}</span> ${escH(x.sr)}</div>
@@ -561,6 +571,8 @@
   }
   function wireSearch(){
     const inp = document.getElementById('sq'); if(!inp) return;
+    const sc = document.getElementById('sscope');
+    if(sc) sc.addEventListener('click', e => { const b = e.target.closest('[data-sf]'); if(!b) return; state.sf = b.getAttribute('data-sf'); sc.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === b)); paintResults(); });
     inp.addEventListener('input', () => {
       state.q = inp.value;
       clearTimeout(srchTimer);
@@ -766,7 +778,7 @@
   }
   // ----- flagged items -----
   function renderFlags(){
-    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet', 'Singing styles', 'Bhatkhande & Paluskar'];
+    const D = XDATA.flags.d, f = state.ff, groups = ['Model answers', 'Chapters', 'Topic cards', 'Players', 'Taal sheet', 'Singing styles', 'Bhatkhande & Paluskar', 'Dashpraan notes'];
     const opt = (v, cur, lab) => `<option value="${escH(v)}" ${cur === v ? 'selected' : ''}>${escH(lab)}</option>`;
     const items = D.items.filter(i => (!f.g || i.group === f.g) && (!f.k || i.kind.indexOf(f.k) >= 0));
     const tag = k => ({flag: '<span class="tag flag">⚑ flag</span>', guru: '<span class="tag guru">ask guru</span>', made: '<span class="tag made">made for this answer</span>'})[k] || '';
@@ -860,6 +872,54 @@
       <div class="hi-note">Sources: ${w.sources.map(s => `<a href="${escH(s.url)}" target="_blank" rel="noopener">${escH(s.label)}</a>`).join(' · ')}</div>
     </div>`;
   }
+  // ----- Stage H: Dashpraan notes and Gharana ready-reckoner (copied from the two documents) -----
+  function renderDashpraan(){
+    const D = XDATA.dashpraan.d;
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head deva">ताल के दशप्राण</div>
+      <div class="hi-note">${escH(D.note)}</div>
+      <div class="dpx deva">${D.sections[0].html}</div>
+      ${D.sections.slice(1).map(x => `<div class="card topic-row" data-href="#/dashpraan/${x.id}"><div><div class="ti deva">${escH(x.title)}</div></div><div class="arrow">→</div></div>`).join('')}
+    </div>`;
+  }
+  function renderDpart(){
+    const D = XDATA.dashpraan.d, i = D.sections.findIndex(x => x.id === state.dpId), x = D.sections[i];
+    if(!x) return renderDashpraan();
+    const nx = D.sections[i + 1], pv = i > 1 ? D.sections[i - 1] : null;
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/dashpraan">← ताल के दशप्राण</div>
+      <div class="topic-head deva">${escH(x.title)}</div>
+      <div class="dpx deva">${x.html}</div>
+      ${nx ? `<div class="card topic-row" data-href="#/dashpraan/${nx.id}"><div><div class="num">NEXT</div><div class="ti deva">${escH(nx.title)}</div></div><div class="arrow">→</div></div>` : ''}
+      ${pv ? `<div class="card topic-row" data-href="#/dashpraan/${pv.id}"><div><div class="num">PREVIOUS</div><div class="ti deva">${escH(pv.title)}</div></div><div class="arrow">←</div></div>` : ''}
+    </div>`;
+  }
+  function renderGharana(){
+    const D = XDATA.gharana.d, grp = ['तबला', 'पखावज', ''];
+    const rows = g => D.items.filter(x => x.group === g).map(x => `<div class="card topic-row" data-href="#/gharana/${x.id}"><div><div class="num">${x.kind === 'tree' ? 'FAMILY TREE' : x.kind === 'card' ? 'GHARANA CARD' : 'MORE'}</div><div class="ti deva">${escH(x.title)}</div>${x.sub ? `<div class="res-tx deva">${escH(x.sub)}</div>` : ''}</div><div class="arrow">→</div></div>`).join('');
+    return `${header()}
+    <div class="screen active">
+      <div class="topic-head deva">घराना रेडी-रेकनर</div>
+      <div class="hi-note">${escH(D.note)}</div>
+      <div class="gx deva">${D.cover}</div>
+      ${grp.map(g => `<div class="topic-head-sub deva">${g || 'बाकी घराने'}</div>${rows(g)}`).join('')}
+    </div>`;
+  }
+  function renderGitem(){
+    const D = XDATA.gharana.d, i = D.items.findIndex(x => x.id === state.gId), x = D.items[i];
+    if(!x) return renderGharana();
+    const nx = D.items[i + 1], pv = D.items[i - 1];
+    return `${header()}
+    <div class="screen active">
+      <div class="back-link" data-href="#/gharana">← घराना रेडी-रेकनर</div>
+      ${x.kind === 'tree' ? '<div class="hi-note">Family tree: swipe sideways to move around, or pinch to zoom.</div>' : ''}
+      <div class="gx deva ${x.kind}">${x.html}</div>
+      ${nx ? `<div class="card topic-row" data-href="#/gharana/${nx.id}"><div><div class="num">NEXT</div><div class="ti deva">${escH(nx.title)}</div></div><div class="arrow">→</div></div>` : ''}
+      ${pv ? `<div class="card topic-row" data-href="#/gharana/${pv.id}"><div><div class="num">PREVIOUS</div><div class="ti deva">${escH(pv.title)}</div></div><div class="arrow">←</div></div>` : ''}
+    </div>`;
+  }
   function renderNotation(){
     const N = XDATA.masters.d.notation, T = N.teentaal;
     const vib = [0, 1, 2, 3].map(v => {
@@ -921,6 +981,10 @@
     else if(state.screen === 'masters') html = renderMasters();
     else if(state.screen === 'master') html = renderMaster();
     else if(state.screen === 'notation') html = renderNotation();
+    else if(state.screen === 'dashpraan') html = renderDashpraan();
+    else if(state.screen === 'dpart') html = renderDpart();
+    else if(state.screen === 'gharana') html = renderGharana();
+    else if(state.screen === 'gitem') html = renderGitem();
     else if(state.screen === 'flags') html = renderFlags();
     else if(state.screen === 'players-loading') html = renderPlayersLoading();
     else if(state.screen === 'players') html = renderPlayers();
@@ -1017,6 +1081,17 @@
         state.curStyle = p[1] ? styleById(p[1]) : null;
         state.screen = state.curStyle ? 'style' : 'styles';
       } else state.screen = p[0];
+    }
+    else if(p[0] === 'dashpraan' || p[0] === 'gharana'){
+      const nm = p[0];
+      if(!(XDATA[nm] && XDATA[nm].d)){
+        state.screen = 'x-loading'; render(false);
+        loadX(nm).then(() => { if(state.screen === 'x-loading') route(); })
+          .catch(e => { state.screen = 'ans-error'; state.answersError = String(e && e.message || e); render(false); });
+        return;
+      }
+      if(nm === 'dashpraan'){ state.dpId = p[1] || ''; state.screen = state.dpId && p[1] !== 'cover' ? 'dpart' : 'dashpraan'; }
+      else { state.gId = p[1] || ''; state.screen = state.gId ? 'gitem' : 'gharana'; }
     }
     else if(p[0] === 'masters' || p[0] === 'notation'){
       if(!(XDATA.masters && XDATA.masters.d)){
